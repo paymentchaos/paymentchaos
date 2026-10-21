@@ -273,6 +273,33 @@ describe("runScenario", () => {
     expect(fresh.report.seed).toBe(9);
   });
 
+  it("selects from a huge repeat without work proportional to it", async () => {
+    server = await startRecordingServer();
+    const s = scenario(server.url, [], { assert: undefined, hooks: undefined });
+    const max = Number.MAX_SAFE_INTEGER;
+    const run = await runScenario(s, { adapter, env, repeat: max, repeatIndex: max });
+    expect(run.repeats.map((r) => r.index)).toEqual([max]);
+    expect(server.requests).toHaveLength(run.plan.deliveries.length);
+  });
+
+  it.each([
+    [2 ** 53, undefined],
+    [2 ** 53, 1],
+    [Number.POSITIVE_INFINITY, undefined],
+  ])("rejects unsafe repeat %s (index %s) before hooks or sends", async (repeat, repeatIndex) => {
+    server = await startRecordingServer();
+    const s = scenario(server.url, [], { assert: undefined, hooks: undefined });
+    await expect(
+      runScenario(s, {
+        adapter,
+        env,
+        repeat,
+        ...(repeatIndex === undefined ? {} : { repeatIndex }),
+      }),
+    ).rejects.toMatchObject({ code: "CONFIG_INVALID", message: expect.stringMatching(/^repeat /) });
+    expect(server.requests).toHaveLength(0);
+  });
+
   it.each([
     [0, 20],
     [21, 20],

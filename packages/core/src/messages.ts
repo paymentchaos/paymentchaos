@@ -87,7 +87,8 @@ export const messages = {
     `No target configured for provider "${provider}". Set providers.${provider}.target.url in paymentchaos.config.yaml or target.url in the scenario.`,
   targetSecretMissing: (provider: string) =>
     `No signing secret configured for provider "${provider}". Set target.secret to an environment reference such as \${STRIPE_WEBHOOK_SECRET}.`,
-  repeatInvalid: (repeat: number) => `repeat must be a whole number >= 1, got ${String(repeat)}.`,
+  repeatInvalid: (repeat: number) =>
+    `repeat must be a whole number from 1 to ${String(Number.MAX_SAFE_INTEGER)}, got ${String(repeat)}.`,
   repeatIndexInvalid: (index: number, repeat: number) =>
     `repeatIndex must be a whole number from 1 to ${String(repeat)} (the repeat count), got ${String(index)}. Pass the same --repeat as the original run, or omit --repeat-index to run every repetition.`,
   repeatSelected: (index: number, repeat: number, stableIds: boolean) =>

@@ -144,18 +144,19 @@ export async function runScenario(
   assertTargetAllowed(target.url, guard);
   const timeoutMillis = resolveRequestTimeout(options.timeoutMillis);
   const repeat = options.repeat ?? scenario.repeat;
-  if (!Number.isInteger(repeat) || repeat < 1) {
+  // Safe integers only: past 2^53, `index++` stops changing the value and never terminates.
+  if (!Number.isSafeInteger(repeat) || repeat < 1) {
     throw new PaymentChaosError("CONFIG_INVALID", messages.repeatInvalid(repeat));
   }
   const selected = options.repeatIndex;
   if (
     selected !== undefined &&
-    (!Number.isInteger(selected) || selected < 1 || selected > repeat)
+    (!Number.isSafeInteger(selected) || selected < 1 || selected > repeat)
   ) {
     throw new PaymentChaosError("CONFIG_INVALID", messages.repeatIndexInvalid(selected, repeat));
   }
-  const indices =
-    selected === undefined ? Array.from({ length: repeat }, (_, i) => i + 1) : [selected];
+  const firstIndex = selected ?? 1;
+  const lastIndex = selected ?? repeat;
   if (target.secret === undefined) {
     throw new PaymentChaosError("SECRET_MISSING", messages.targetSecretMissing(scenario.provider));
   }
@@ -207,7 +208,7 @@ export async function runScenario(
 
   let plan: DeliveryPlan | undefined;
   const repeats: RepeatOutcome[] = [];
-  for (const index of indices) {
+  for (let index = firstIndex; index <= lastIndex; index++) {
     const compiled = compilePlan(
       scenario,
       adapter,
