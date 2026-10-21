@@ -29,4 +29,13 @@ export const messages = {
     "Secret must be an environment reference like ${STRIPE_WEBHOOK_SECRET}, never a literal value.",
   secretMissing: (envVar: string) =>
     `Environment variable ${envVar} is not set or is empty. Export the webhook signing secret as ${envVar} before running.`,
+  chaosEventMissing: (
+    operator: string,
+    eventType: string,
+    flow: string,
+    available: readonly string[],
+  ) =>
+    `Chaos operator "${operator}" targets event "${eventType}", but flow "${flow}" never delivers it. Use one of: ${available.join(", ")}.`,
+  chaosOperatorUnknown: (name: string, known: readonly string[]) =>
+    `Unknown chaos operator "${name}". Known operators: ${known.join(", ")}.`,
 } as const;
