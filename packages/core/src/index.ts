@@ -20,6 +20,7 @@ export {
 export { runShellCommand, type ShellOptions, type ShellResult } from "./assert/shell.ts";
 export * from "./contracts/index.ts";
 export {
+  DEFAULT_REQUEST_TIMEOUT_MS,
   type DeliveryOutcome,
   type ExecuteOptions,
   type ExecutionResult,
