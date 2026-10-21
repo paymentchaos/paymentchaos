@@ -1,0 +1,155 @@
+import { glob, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { renderTerminalReport } from "@paymentchaos/report";
+import type { CommandDef } from "citty";
+import { createEngine } from "../engine/fake-engine.ts";
+import { ExitCode, exitCodeFor, exitCodeForReport } from "../exit.ts";
+import { messages } from "../messages.ts";
+import { mergeScenarioWithProject } from "../scenario/merge.ts";
+import {
+  loadResolvedScenario,
+  type ResolvedScenario,
+  resolveScenarioRef,
+} from "../scenario/resolve.ts";
+import { loadProjectConfig } from "../yaml/load.ts";
+
+export interface SharedFlags {
+  seed?: number;
+  repeat?: number;
+  repeatIndex?: number;
+  reporter?: string;
+  out?: string;
+  allowRemoteTarget?: string;
+}
+
+function hasGlobMagic(ref: string): boolean {
+  return ref.includes("*") || ref.includes("?") || ref.includes("[");
+}
+
+async function expandScenarioArgs(cwd: string, args: readonly string[]): Promise<string[]> {
+  const expanded: string[] = [];
+  for (const arg of args) {
+    if (hasGlobMagic(arg)) {
+      const matches: string[] = [];
+      for await (const entry of glob(arg, { cwd })) {
+        matches.push(entry);
+      }
+      if (matches.length === 0) {
+        expanded.push(arg);
+      } else {
+        expanded.push(...matches.sort());
+      }
+    } else {
+      expanded.push(arg);
+    }
+  }
+  return expanded;
+}
+
+export function createRunCommand(): CommandDef {
+  return {
+    meta: {
+      name: "run",
+      description: "Run one or more scenarios against the configured target.",
+    },
+    args: {
+      seed: { type: "string", description: "PRNG seed (printed either way)" },
+      repeat: { type: "string", description: "Repeat the scenario N times" },
+      "repeat-index": { type: "string", description: "Run a single repeat index (1-based)" },
+      reporter: { type: "string", description: "Report format (terminal)", default: "terminal" },
+      out: { type: "string", description: "Write the report to a file" },
+      "allow-remote-target": { type: "string", description: "Allow a non-local target hostname" },
+    },
+    async run(ctx) {
+      const positional = ctx.args._ ?? [];
+      if (positional.length === 0) {
+        console.error(messages.runRequiresScenario);
+        process.exit(ExitCode.Config);
+      }
+
+      const reporter = (ctx.args.reporter as string | undefined) ?? "terminal";
+      if (reporter !== "terminal") {
+        console.error(messages.reporterUnknown(reporter));
+        process.exit(ExitCode.Config);
+      }
+
+      const seed =
+        ctx.args.seed !== undefined ? Number.parseInt(String(ctx.args.seed), 10) : undefined;
+      const repeat =
+        ctx.args.repeat !== undefined ? Number.parseInt(String(ctx.args.repeat), 10) : undefined;
+      const repeatIndex =
+        ctx.args["repeat-index"] !== undefined
+          ? Number.parseInt(String(ctx.args["repeat-index"]), 10)
+          : undefined;
+      const allowRemoteTarget = ctx.args["allow-remote-target"] as string | undefined;
+      const outPath = ctx.args.out as string | undefined;
+
+      const cwd = process.cwd();
+      const project = await loadProjectConfig(cwd);
+      const engine = createEngine();
+      const refs = await expandScenarioArgs(cwd, positional);
+
+      let lastExit: (typeof ExitCode)[keyof typeof ExitCode] = ExitCode.Ok;
+
+      for (const ref of refs) {
+        let resolved: ResolvedScenario;
+        let loaded: Awaited<ReturnType<typeof loadResolvedScenario>>;
+        try {
+          resolved = await resolveScenarioRef(cwd, ref);
+          loaded = await loadResolvedScenario(resolved);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(exitCodeFor(error));
+        }
+        let scenario = loaded.scenario;
+        if (seed !== undefined) {
+          scenario = { ...scenario, seed };
+        }
+        if (repeat !== undefined) {
+          scenario = { ...scenario, repeat };
+        }
+
+        try {
+          scenario = mergeScenarioWithProject(scenario, project?.config);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(exitCodeFor(error));
+        }
+
+        const effectiveSeed = scenario.seed ?? seed ?? 1;
+        const effectiveRepeat = scenario.repeat ?? repeat ?? 1;
+
+        const report = await engine.run({
+          scenario,
+          cwd,
+          seed: effectiveSeed,
+          repeat: effectiveRepeat,
+          ...(repeatIndex !== undefined ? { repeatIndex } : {}),
+          ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
+        });
+
+        const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
+        const failedRepeatIndex =
+          report.repeatsFailed > 0 && repeatIndex !== undefined ? repeatIndex : undefined;
+
+        const text = renderTerminalReport(report, {
+          scenarioRef,
+          ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
+          color: process.stdout.isTTY,
+        });
+
+        process.stdout.write(text);
+        if (outPath !== undefined) {
+          await writeFile(path.resolve(cwd, outPath), text, "utf8");
+        }
+
+        const code = exitCodeForReport(report);
+        if (code !== ExitCode.Ok) {
+          lastExit = code;
+        }
+      }
+
+      process.exit(lastExit);
+    },
+  };
+}

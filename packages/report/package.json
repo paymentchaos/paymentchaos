@@ -1,0 +1,24 @@
+{
+  "name": "@paymentchaos/report",
+  "version": "0.0.0",
+  "description": "PaymentChaos run reporters (terminal, and later JSON/JUnit/HTML).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@paymentchaos/core": "workspace:*",
+    "picocolors": "1.1.1"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "paymentchaos",
+  "version": "0.0.0",
+  "description": "Deterministic failure testing for payment and subscription integrations.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "paymentchaos": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@paymentchaos/core": "workspace:*",
+    "@paymentchaos/report": "workspace:*",
+    "citty": "0.1.6",
+    "picocolors": "1.1.1",
+    "yaml": "2.9.1"
+  }
+}
