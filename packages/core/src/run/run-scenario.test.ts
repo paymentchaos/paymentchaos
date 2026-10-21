@@ -206,6 +206,106 @@ describe("runScenario", () => {
     expect(server.requests).toHaveLength(0);
   });
 
+  it("runs exactly the selected repetition with its index in hook and assert metadata", async () => {
+    server = await startRecordingServer();
+    const log = join(dir, "repeat-index.log");
+    writeFileSync(log, "");
+    const record = (phase: string) =>
+      node(
+        writeScript(
+          `record-${phase}.mjs`,
+          `import { appendFileSync } from "node:fs";
+           appendFileSync(process.argv[2], "${phase}=" + process.env.PAYMENTCHAOS_REPEAT_INDEX + "\\n");`,
+        ),
+        log,
+      );
+    const events: string[] = [];
+    const run = await runScenario(
+      scenario(server.url, chaos, {
+        hooks: { beforeEach: record("before"), afterEach: record("after") },
+        assert: { command: record("assert") },
+      }),
+      {
+        adapter,
+        env,
+        seed: 1337,
+        repeat: 20,
+        repeatIndex: 4,
+        onEvent: (e) => {
+          if (e.type !== "plan") events.push(`${e.type}:${String(e.index)}`);
+        },
+      },
+    );
+    expect(readFileSync(log, "utf8").trim().split("\n")).toEqual([
+      "before=4",
+      "assert=4",
+      "after=4",
+    ]);
+    expect(server.requests).toHaveLength(run.plan.deliveries.length);
+    expect(run.repeats.map((r) => r.index)).toEqual([4]);
+    expect(new Set(events)).toEqual(new Set(["repeat-start:4", "delivery:4", "repeat-end:4"]));
+    expect(run.report).toMatchObject({ status: "passed", repeat: 1, repeatsFailed: 0 });
+    expect(run.notes.join(" ")).toMatch(/only repetition 4 of 20/);
+  });
+
+  it("counts only the executed repetition when the selected run fails", async () => {
+    server = await startRecordingServer((_req, res) => {
+      res.writeHead(409).end();
+    });
+    const run = await runScenario(
+      scenario(server.url, [], { assert: undefined, hooks: undefined }),
+      { adapter, env, seed: 1, repeat: 20, repeatIndex: 4 },
+    );
+    expect(run.report).toMatchObject({ status: "failed", repeat: 1, repeatsFailed: 1 });
+    expect(run.notes.join(" ")).not.toMatch(/repetitions failed/);
+  });
+
+  it("keeps seed and plan hash, and ids with stableIds, for a selected repetition", async () => {
+    server = await startRecordingServer();
+    const s = scenario(server.url, chaos, { assert: undefined, hooks: undefined });
+    const base = { adapter, env, seed: 9, repeat: 5 };
+    const full = await runScenario(s, { ...base, stableIds: true });
+    const one = await runScenario(s, { ...base, stableIds: true, repeatIndex: 4 });
+    expect(one.report.planHash).toBe(full.report.planHash);
+    expect(one.repeats[0]?.ids).toEqual(full.repeats[3]?.ids);
+    const fresh = await runScenario(s, { ...base, repeatIndex: 4 });
+    expect(fresh.report.planHash).toBe(full.report.planHash);
+    expect(fresh.report.seed).toBe(9);
+  });
+
+  it.each([
+    [0, 20],
+    [21, 20],
+    [-1, 20],
+    [1.5, 20],
+    [Number.NaN, 20],
+    [2, undefined],
+  ])("rejects repeatIndex %s (repeat %s) before hooks or sends", async (repeatIndex, repeat) => {
+    server = await startRecordingServer();
+    const marker = join(dir, "repeat-index-hook-ran");
+    const hook = node(
+      writeScript(
+        "mark-repeat-index.mjs",
+        `import { writeFileSync } from "node:fs"; writeFileSync(process.argv[2], "x");`,
+      ),
+      marker,
+    );
+    const s = scenario(server.url, [], { hooks: { beforeEach: hook } });
+    await expect(
+      runScenario(s, {
+        adapter,
+        env,
+        repeatIndex,
+        ...(repeat === undefined ? {} : { repeat }),
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFIG_INVALID",
+      message: expect.stringContaining("--repeat-index"),
+    });
+    expect(existsSync(marker)).toBe(false);
+    expect(server.requests).toHaveLength(0);
+  });
+
   it("uses the same ids every repetition with stableIds", async () => {
     server = await startRecordingServer();
     const run = await runScenario(
