@@ -23,6 +23,7 @@
     "schemas:generate": "node --experimental-strip-types scripts/generate-schemas.ts"
   },
   "dependencies": {
+    "undici": "7.30.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
