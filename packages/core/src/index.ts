@@ -2,6 +2,22 @@
  * `@paymentchaos/core` public surface: the frozen contracts (M0) plus the M1 engine
  * built behind them. Export narrowly; internals stay internal.
  */
+
+export {
+  type CommandAssertionOptions,
+  type CommandAssertionOutcome,
+  commandAssertionResults,
+  DEFAULT_COMMAND_TIMEOUT_MS,
+  parseCommandOutput,
+  runCommandAssertion,
+} from "./assert/command.ts";
+export {
+  buildCommandEnv,
+  COMMAND_ENV_ALLOWLIST,
+  type CommandEnvOptions,
+  type RunMetadata,
+} from "./assert/env.ts";
+export { runShellCommand, type ShellOptions, type ShellResult } from "./assert/shell.ts";
 export * from "./contracts/index.ts";
 export {
   type DeliveryOutcome,

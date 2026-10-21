@@ -58,4 +58,12 @@ export const messages = {
     `Could not connect to the target at ${host} (${code}). Is your app running and listening on that address?`,
   deliveryTimedOut: (millis: number) => `no response within ${String(millis)} ms`,
   deliveryFailed: (reason: string) => `request failed: ${reason}`,
+  commandAssertionName: (command: string) => `assert.command: ${command}`,
+  commandProtocolName: () => "assert.command output",
+  commandProtocolInvalid: (issue: string) =>
+    `stdout ended with JSON that is not a PaymentChaos result document ({ "checks": [{ "name", "pass", … }] }): ${issue}. The exit code still decides the verdict.`,
+  commandTimedOut: (attempts: number) =>
+    `The assertion command timed out and was stopped (attempt ${String(attempts)}). Make it finish faster or raise the command timeout.`,
+  commandFailed: (exitCode: number | null, attempts: number, stderr: string) =>
+    `The assertion command exited with ${exitCode === null ? "a signal" : String(exitCode)} after ${String(attempts)} attempt(s).${stderr === "" ? "" : ` stderr: ${stderr}`}`,
 } as const;
