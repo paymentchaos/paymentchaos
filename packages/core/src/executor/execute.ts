@@ -66,7 +66,10 @@ export interface ExecutionResult {
  */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
-/** `AbortSignal.timeout()` clamps larger delays to 1 ms, so they are rejected up front. */
+/**
+ * The largest delay `AbortSignal.timeout()` honors. Node clamps larger 32-bit values to
+ * 1 ms (with a warning) and throws above that, so they are rejected up front.
+ */
 const MAX_REQUEST_TIMEOUT_MS = 2_147_483_647;
 
 /** Resolve and validate the local request timeout. Pure, so callers run it before any side effect. */
@@ -178,6 +181,11 @@ export async function executePlan(
         body: signed.body,
         signal,
         dispatcher,
+        // undici's own 300 s header and body timeouts would cut a longer local timeout
+        // short. Per-request 0 disables them on any dispatcher, injected ones included,
+        // so `signal` is the only deadline.
+        headersTimeout: 0,
+        bodyTimeout: 0,
       });
       reachedTarget = true;
       await response.body.dump();

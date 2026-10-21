@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { Agent, type Dispatcher } from "undici";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   asInstant,
@@ -155,6 +156,44 @@ describe("executePlan", () => {
       expect(target.requests).toHaveLength(0);
     },
   );
+
+  it("makes the local timeout the only request deadline, even on an injected dispatcher", async () => {
+    // undici's timers are coarse (~1 s), so headers must be later than that to trip one.
+    let n = 0;
+    const target = await serve(async (_req, res) => {
+      if (++n === 1) await sleep(1200);
+      res.writeHead(200).end();
+    });
+    // Stands in for undici's 300 s defaults, which would otherwise cap a longer local timeout.
+    class RecordingAgent extends Agent {
+      readonly seen: Dispatcher.DispatchOptions[] = [];
+      override dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandler) {
+        this.seen.push(opts);
+        return super.dispatch(opts, handler);
+      }
+    }
+    const dispatcher = new RecordingAgent({ headersTimeout: 50, bodyTimeout: 50 });
+    try {
+      const result = await executePlan(compile([]), adapter, {
+        url: target.url,
+        keys,
+        env,
+        dispatcher,
+        timeoutMillis: 5000,
+      });
+      // Without per-request overrides the first delivery fails with UND_ERR_HEADERS_TIMEOUT.
+      expect(result.deliveries.map((d) => [d.statusCode, d.error ?? null, d.accepted])).toEqual([
+        [200, null, true],
+        [200, null, true],
+      ]);
+      expect(dispatcher.seen.map((o) => [o.headersTimeout, o.bodyTimeout])).toEqual([
+        [0, 0],
+        [0, 0],
+      ]);
+    } finally {
+      await dispatcher.close();
+    }
+  });
 
   it("releases a concurrency group together behind a barrier", async () => {
     // The target holds every request until three are in flight, or 1 s passes.
