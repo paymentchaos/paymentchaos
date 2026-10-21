@@ -1,0 +1,28 @@
+{
+  "name": "@paymentchaos/provider-stripe",
+  "version": "0.0.0",
+  "description": "Deterministic Stripe test webhooks and raw-byte signatures for PaymentChaos.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@paymentchaos/core": "workspace:*"
+  },
+  "devDependencies": {
+    "stripe": "18.5.0",
+    "fast-check": "4.10.2"
+  }
+}
