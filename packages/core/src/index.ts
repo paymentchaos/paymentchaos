@@ -14,3 +14,15 @@ export {
   RUN_NONCE_LENGTH,
 } from "./runtime/ids.ts";
 export { createRng, PRNG_VERSION } from "./runtime/rng.ts";
+export {
+  type Env,
+  REDACTED,
+  redactSecrets,
+  resolveSecret,
+  secretValues,
+} from "./safety/secrets.ts";
+export {
+  assertTargetAllowed,
+  isLocalHost,
+  type TargetGuardOptions,
+} from "./safety/target-guard.ts";
