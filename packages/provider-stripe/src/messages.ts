@@ -17,5 +17,8 @@ export const messages = {
   mismatch:
     "Stripe signature does not match; verify the endpoint key and preserve the raw body bytes.",
   stale: "Stripe signature is older than 300 seconds; use a fresh delivery timestamp.",
-  timestamp: "Stripe signing timestamp is invalid; supply a finite UTC epoch instant.",
+  timestamp:
+    "Stripe signing timestamp is invalid; supply nonnegative whole UTC epoch milliseconds within the JavaScript Date range.",
+  receptionTimestamp:
+    "Stripe reception timestamp is invalid; supply nonnegative whole UTC epoch milliseconds within the JavaScript Date range.",
 };
