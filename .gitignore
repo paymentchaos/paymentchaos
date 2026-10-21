@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Local run history and captured payloads never leave the developer's machine.
+.paymentchaos/
+
+.env
+.env.*
+!.env.example
+
+.astro/
+.amplify-hosting/
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Webhook fixtures are signed byte-for-byte. Line-ending conversion would invalidate signatures.
+**/fixtures/** -text
+*.fixture.json -text
+*.fixture.bin -text
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.gif binary
