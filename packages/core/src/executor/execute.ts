@@ -188,7 +188,10 @@ export async function executePlan(
         bodyTimeout: 0,
       });
       reachedTarget = true;
-      await response.body.dump();
+      // Without its own signal, dump() resolves when the request signal destroys the
+      // body, so a stalled body after accepted headers would be reported as accepted.
+      // 128 KiB is undici's own default limit; the typings require it with a signal.
+      await response.body.dump({ signal, limit: 131_072 });
       const latencyMs = performance.now() - started;
       return {
         ...base,

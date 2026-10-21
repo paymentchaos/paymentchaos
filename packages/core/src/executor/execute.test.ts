@@ -122,6 +122,27 @@ describe("executePlan", () => {
     ]);
   });
 
+  it("times out a response whose headers arrive but whose body stalls", async () => {
+    const target = await serve(async (_req, res) => {
+      res.writeHead(200);
+      res.flushHeaders();
+      await sleep(400);
+      res.end();
+    });
+    const result = await executePlan(compile([]), adapter, {
+      url: target.url,
+      keys,
+      env,
+      timeoutMillis: 100,
+    });
+    expect(
+      result.deliveries.map((d) => [d.statusCode ?? null, d.error ?? null, d.accepted]),
+    ).toEqual([
+      [null, "no response within 100 ms", false],
+      [null, "no response within 100 ms", false],
+    ]);
+  });
+
   it("uses the local 10 s default, not the provider's timeout metadata", async () => {
     expect(DEFAULT_REQUEST_TIMEOUT_MS).toBe(10_000);
     const target = await serve(async (_req, res) => {
