@@ -45,6 +45,15 @@ export {
 } from "./plan/compile.ts";
 export { createDraft, normalizeDraft, type PlanDraft } from "./plan/draft.ts";
 export { hashPlan, PLAN_FORMAT_VERSION, type PlanHashInput } from "./plan/hash.ts";
+export {
+  deliveriesAcceptedCheck,
+  generateSeed,
+  type RepeatOutcome,
+  type RunEvent,
+  type RunOutcome,
+  type RunScenarioOptions,
+  runScenario,
+} from "./run/run-scenario.ts";
 export { createLogicalClock, LOGICAL_EPOCH } from "./runtime/clock.ts";
 export {
   createIdFactory,
