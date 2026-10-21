@@ -3,6 +3,12 @@
  * built behind them. Export narrowly; internals stay internal.
  */
 export * from "./contracts/index.ts";
+export {
+  type DeliveryOutcome,
+  type ExecuteOptions,
+  type ExecutionResult,
+  executePlan,
+} from "./executor/execute.ts";
 export { messages } from "./messages.ts";
 export type {
   ChaosOperatorDefinition,
