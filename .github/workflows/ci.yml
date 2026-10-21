@@ -35,6 +35,9 @@ jobs:
       - run: npm install -g corepack@0.36.0 --force
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
+      # Workspace packages export ./dist, so dependents can only typecheck and test
+      # against built output.
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
@@ -53,6 +56,9 @@ jobs:
       - run: npm install -g corepack@0.36.0 --force
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
+      # Workspace packages export ./dist, so dependents can only typecheck and test
+      # against built output.
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test

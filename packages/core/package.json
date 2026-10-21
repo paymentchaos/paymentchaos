@@ -1,13 +1,17 @@
 {
   "name": "@paymentchaos/core",
   "version": "0.0.0",
-  "description": "PaymentChaos core contracts: scenario model, provider adapter interface, delivery plan and run report.",
+  "description": "PaymentChaos core: contracts, deterministic plan compiler, chaos operators, executor and assertions.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     }
   },
   "files": [
@@ -19,6 +23,7 @@
     "schemas:generate": "node --experimental-strip-types scripts/generate-schemas.ts"
   },
   "dependencies": {
+    "undici": "7.30.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
