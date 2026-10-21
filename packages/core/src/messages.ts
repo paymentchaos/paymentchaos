@@ -58,4 +58,48 @@ export const messages = {
     `Could not connect to the target at ${host} (${code}). Is your app running and listening on that address?`,
   deliveryTimedOut: (millis: number) => `no response within ${String(millis)} ms`,
   deliveryFailed: (reason: string) => `request failed: ${reason}`,
+  commandAssertionName: (command: string) => `assert.command: ${command}`,
+  commandProtocolName: () => "assert.command output",
+  commandProtocolInvalid: (issue: string) =>
+    `stdout ended with JSON that is not a PaymentChaos result document ({ "checks": [{ "name", "pass", … }] }): ${issue}. The exit code still decides the verdict.`,
+  commandTimedOut: (attempts: number) =>
+    `The assertion command timed out and was stopped (attempt ${String(attempts)}). Make it finish faster or raise the command timeout.`,
+  commandFailed: (exitCode: number | null, attempts: number, stderr: string) =>
+    `The assertion command exited with ${exitCode === null ? "a signal" : String(exitCode)} after ${String(attempts)} attempt(s).${stderr === "" ? "" : ` stderr: ${stderr}`}`,
+  acceptedCheckName: () => "every validly signed delivery is accepted",
+  acceptedCheckFailed: (
+    rejected: ReadonlyArray<{
+      seq: number;
+      eventType: string;
+      status: number | undefined;
+      error: string | undefined;
+    }>,
+  ) =>
+    `${String(rejected.length)} validly signed deliver${rejected.length === 1 ? "y was" : "ies were"} not accepted: ${rejected
+      .slice(0, 5)
+      .map((r) => `#${String(r.seq)} ${r.eventType} (${r.error ?? `HTTP ${String(r.status)}`})`)
+      .join(
+        ", ",
+      )}${rejected.length > 5 ? ", …" : ""}. Providers retry anything they don't see as accepted, so acknowledge duplicates and replays with a 2xx too.`,
+  targetMissing: (provider: string) =>
+    `No target configured for provider "${provider}". Set providers.${provider}.target.url in paymentchaos.config.yaml or target.url in the scenario.`,
+  targetSecretMissing: (provider: string) =>
+    `No signing secret configured for provider "${provider}". Set target.secret to an environment reference such as \${STRIPE_WEBHOOK_SECRET}.`,
+  repeatInvalid: (repeat: number) => `repeat must be a whole number >= 1, got ${String(repeat)}.`,
+  hookFailed: (
+    phase: string,
+    command: string,
+    exitCode: number | null,
+    timedOut: boolean,
+    stderr: string,
+  ) =>
+    `hooks.${phase} command \`${command}\` ${timedOut ? "timed out" : `exited with ${exitCode === null ? "a signal" : String(exitCode)}`}.${stderr === "" ? "" : ` stderr: ${stderr}`} Fix the hook so it exits 0.`,
+  planHashDrift: () =>
+    "The plan hash changed between repetitions of one run. Planning must be deterministic; this is a bug in PaymentChaos or the provider adapter.",
+  httpAssertNotYetSupported: () =>
+    "assert.http is not supported yet (planned for v0.1) and was ignored. Use assert.command for now.",
+  repeatsFailed: (failed: number, total: number, shown: number) =>
+    `${String(failed)} of ${String(total)} repetitions failed; showing repetition ${String(shown)}.`,
+  raceNotProven: (total: number) =>
+    `All ${String(total)} repetition(s) passed. Concurrent deliveries interleave nondeterministically on your server, so this lowers but does not rule out the chance of a race. Raise repeat to test harder.`,
 } as const;
