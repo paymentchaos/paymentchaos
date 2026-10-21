@@ -8,6 +8,8 @@ export interface ProviderRegistry {
   listFlows(providerFilter?: string): readonly FlowListing[];
 }
 
+const STRIPE_PACKAGE = "@paymentchaos/provider-stripe";
+
 function isModuleNotFound(error: unknown): boolean {
   if (typeof error !== "object" || error === null) {
     return false;
@@ -16,15 +18,46 @@ function isModuleNotFound(error: unknown): boolean {
   return code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND";
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function missingPackageInChain(error: unknown, packageName: string): boolean {
+  for (let current: unknown = error; current instanceof Error; current = current.cause) {
+    if (isModuleNotFound(current) && errorMessage(current).includes(packageName)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function foreignModuleNotFoundInChain(error: unknown, packageName: string): boolean {
+  for (let current: unknown = error; current instanceof Error; current = current.cause) {
+    if (isModuleNotFound(current) && !errorMessage(current).includes(packageName)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function loadStripeAdapter(env: Env): Promise<ProviderAdapter | undefined> {
   try {
-    const mod = await import("@paymentchaos/provider-stripe");
+    const mod = await import(STRIPE_PACKAGE);
     return mod.createStripeAdapter({ env });
   } catch (error) {
-    if (isModuleNotFound(error)) {
+    if (missingPackageInChain(error, STRIPE_PACKAGE)) {
       return undefined;
     }
-    throw error;
+    if (foreignModuleNotFoundInChain(error, STRIPE_PACKAGE)) {
+      throw new PaymentChaosError(
+        "INTERNAL",
+        messages.providerLoadFailed("stripe", STRIPE_PACKAGE),
+        { cause: error },
+      );
+    }
+    throw new PaymentChaosError("INTERNAL", messages.providerLoadFailed("stripe", STRIPE_PACKAGE), {
+      cause: error,
+    });
   }
 }
 

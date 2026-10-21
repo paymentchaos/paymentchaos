@@ -27,11 +27,20 @@ export const messages = {
     installed.length === 0
       ? `Provider "${provider}" is not installed. Install the matching @paymentchaos/provider-* package for this scenario.`
       : `Provider "${provider}" is not installed. Installed providers: ${installed.join(", ")}.`,
-  repeatIndexOutOfRange: (index: number, repeat: number) =>
-    `--repeat-index ${String(index)} is out of range for this run (use 1 through ${String(repeat)}).`,
   flagNotPositiveInt: (flag: string, value: string) =>
     `Invalid value "${value}" for --${flag}. Use a positive integer.`,
   flagInvalidSeed: (value: string) =>
-    `Invalid --seed "${value}". Use a non-negative integer below 2^31.`,
+    `Invalid --seed "${value}". Use a safe signed integer (for example 1337 or -1).`,
   runSeedLine: (seed: number) => `seed ${seed}`,
+  providerLoadFailed: (provider: string, packageName: string) =>
+    `Failed to load ${provider} provider from ${packageName}. Reinstall workspace dependencies or report an internal error if the package is present.`,
+  runArgSeed: "PRNG seed (printed either way; safe signed integer)",
+  runArgRepeat: "Repeat the scenario N times",
+  runArgRepeatIndex:
+    "Run a single repeat index (1-based; requires the same --repeat as the original run)",
+  runArgReporter: "Report format (terminal)",
+  runArgOut: "Write the report to a file",
+  runArgAllowRemoteTarget: "Allow a non-local target hostname",
+  runArgStableIds: "Disable per-run id nonce (needed to replay a selected repeat's ids)",
+  runArgTimeoutMs: "Per-delivery HTTP timeout in milliseconds (default 10000)",
 } as const;

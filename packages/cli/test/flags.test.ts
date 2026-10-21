@@ -7,13 +7,20 @@ describe("CLI numeric flags", () => {
     expect(() => parseOptionalPositiveInt("12abc", "repeat")).toThrow(PaymentChaosError);
   });
 
-  it("accepts positive integers", () => {
+  it("rejects unsafe huge integers", () => {
+    const huge = "9".repeat(400);
+    expect(() => parseOptionalPositiveInt(huge, "repeat")).toThrow(PaymentChaosError);
+  });
+
+  it("accepts positive safe integers", () => {
     expect(parseOptionalPositiveInt("20", "repeat")).toBe(20);
   });
 
-  it("validates seed range", () => {
+  it("accepts signed safe integer seeds", () => {
     expect(parseOptionalSeed("0")).toBe(0);
-    expect(() => parseOptionalSeed("-1")).toThrow(PaymentChaosError);
+    expect(parseOptionalSeed("-1")).toBe(-1);
+    expect(parseOptionalSeed("1337")).toBe(1337);
     expect(() => parseOptionalSeed("12.5")).toThrow(PaymentChaosError);
+    expect(() => parseOptionalSeed("9".repeat(400))).toThrow(PaymentChaosError);
   });
 });

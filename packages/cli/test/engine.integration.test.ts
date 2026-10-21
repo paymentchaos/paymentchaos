@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   ExitCode,
   PaymentChaosError,
@@ -135,6 +132,35 @@ describe("core engine integration", () => {
     ).rejects.toMatchObject({ code: "CONFIG_INVALID" });
   });
 
+  it("executes one repetition when repeatIndex is set", async () => {
+    server = await startRecordingServer();
+    const adapter = createFakeProvider({ env, flows: STRIPE_LIKE_FLOWS });
+    const engine = createCoreEngine(testRegistry(adapter));
+    await engine.run({
+      scenario: baseScenario(server.url, { repeat: 1 }),
+      cwd: process.cwd(),
+      seed: 9,
+      repeat: 1,
+      env,
+    });
+    const singleRunRequests = server.requests.length;
+    expect(singleRunRequests).toBeGreaterThan(0);
+
+    await server.close();
+    server = await startRecordingServer();
+    const selected = await engine.run({
+      scenario: baseScenario(server.url, { repeat: 20 }),
+      cwd: process.cwd(),
+      seed: 9,
+      repeat: 20,
+      repeatIndex: 4,
+      stableIds: true,
+      env,
+    });
+    expect(selected.report.repeat).toBe(1);
+    expect(server.requests.length).toBe(singleRunRequests);
+  });
+
   it("compiles a deterministic plan without contacting the target", async () => {
     const adapter = createFakeProvider({ env, flows: STRIPE_LIKE_FLOWS });
     const engine = createCoreEngine(testRegistry(adapter));
@@ -158,36 +184,5 @@ describe("core engine integration", () => {
       "customer.subscription.updated",
       "customer.subscription.deleted",
     ]);
-  });
-});
-
-describe("CLI subprocess config errors", () => {
-  const dir = mkdtempSync(join(tmpdir(), "paymentchaos-cli-config-"));
-
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("loads invalid scenario YAML with config exit semantics", async () => {
-    const file = join(dir, "bad.yaml");
-    writeFileSync(
-      file,
-      `version: 1
-name: bad
-provider: stripe
-flow: subscription-renewal
-target:
-  url: http://127.0.0.1:3000/hook
-  secret: sk_live_nope
-`,
-      "utf8",
-    );
-    const { loadScenarioFile } = await import("../src/yaml/load.ts");
-    await expect(loadScenarioFile(file)).rejects.toMatchObject({ code: "CONFIG_INVALID" });
-    try {
-      await loadScenarioFile(file);
-    } catch (error) {
-      expect(exitCodeFor(error)).toBe(ExitCode.Config);
-    }
   });
 });

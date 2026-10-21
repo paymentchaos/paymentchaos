@@ -2,16 +2,29 @@
 
 Deterministic failure testing for payment and subscription integrations.
 
-## Install
+## Run from a workspace checkout
 
-From the monorepo root (requires Node ≥ 22 and pnpm):
+This package is developed inside the PaymentChaos monorepo. Build dependencies and the CLI from the **repository root** (Node ≥ 22, pnpm via corepack):
 
 ```bash
 pnpm install
-pnpm --filter paymentchaos build
+pnpm build
 ```
 
-Install provider packages for the scenarios you run (for example `@paymentchaos/provider-stripe` when it is published in the workspace).
+Invoke the CLI with the workspace filter (links the `paymentchaos` bin to `packages/cli/dist/bin.js`):
+
+```bash
+pnpm --filter paymentchaos exec paymentchaos --help
+pnpm --filter paymentchaos exec paymentchaos flows
+```
+
+Or call the built entrypoint directly:
+
+```bash
+node packages/cli/dist/bin.js run --help
+```
+
+Install `@paymentchaos/provider-stripe` in the workspace when running Stripe scenarios (orchestrator adds the dependency to this package when the provider lands).
 
 ## Project config
 
@@ -31,19 +44,15 @@ Scenario files under `paymentchaos/scenarios/` inherit these targets.
 ## Commands
 
 ```bash
-# List lifecycle packs for installed providers
-pnpm exec paymentchaos flows
-pnpm exec paymentchaos flows stripe
-
-# Compile a delivery plan (no network, no secret resolution)
-pnpm exec paymentchaos plan paymentchaos/scenarios/renewal.yaml --seed 1337
-
-# Run scenarios (prints the seed, dispatches webhooks, runs assertions)
-pnpm exec paymentchaos run stripe-subscription-renewal
-pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 5
-pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 20 --repeat-index 4
-pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --timeout-ms 15000
+pnpm --filter paymentchaos exec paymentchaos flows
+pnpm --filter paymentchaos exec paymentchaos plan paymentchaos/scenarios/renewal.yaml --seed 1337
+pnpm --filter paymentchaos exec paymentchaos run stripe-subscription-renewal
+pnpm --filter paymentchaos exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 5
+pnpm --filter paymentchaos exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 20 --repeat-index 4 --stable-ids
+pnpm --filter paymentchaos exec paymentchaos run paymentchaos/scenarios/renewal.yaml --timeout-ms 15000
 ```
+
+Quote scenario paths that contain spaces when invoking from a shell (single quotes on Unix, double quotes on Windows cmd.exe). Reproduce lines in reports quote paths automatically where needed.
 
 Remote targets require `--allow-remote-target <hostname>` matching the URL host.
 

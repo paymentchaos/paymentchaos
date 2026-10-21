@@ -2,6 +2,7 @@ import type { AssertionResult, RunReport } from "@paymentchaos/core";
 import pc from "picocolors";
 import { formatValue, shortPlanHash } from "./format.ts";
 import { messages } from "./messages.ts";
+import { quoteShellArg } from "./shell-quote.ts";
 
 export interface TerminalRenderOptions {
   /** Scenario file path or built-in name used in the reproduce command. */
@@ -10,6 +11,8 @@ export interface TerminalRenderOptions {
   readonly scenarioRepeat?: number;
   /** 1-based index of the failed repeat, when `report.repeat` > 1. */
   readonly failedRepeatIndex?: number;
+  /** When true, only one repetition was executed (--repeat-index). */
+  readonly repeatSelection?: boolean;
   /** Caveats from {@link RunOutcome.notes} (core run surface). */
   readonly notes?: readonly string[];
   readonly color?: boolean;
@@ -45,7 +48,7 @@ function buildReproduceCommand(
   scenarioRepeat: number | undefined,
   failedRepeatIndex: number | undefined,
 ): string {
-  const parts = ["npx", "paymentchaos", "run", scenarioRef, "--seed", String(seed)];
+  const parts = ["npx", "paymentchaos", "run", quoteShellArg(scenarioRef), "--seed", String(seed)];
   const totalRepeat = scenarioRepeat ?? 0;
   if (totalRepeat > 1) {
     parts.push("--repeat", String(totalRepeat));
@@ -153,9 +156,13 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
   ];
   const repeatTotal = options.scenarioRepeat ?? report.repeat;
   if (report.repeatsFailed > 0 && options.failedRepeatIndex !== undefined) {
-    bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, repeatTotal));
+    if (options.repeatSelection === true && repeatTotal > 1) {
+      bannerParts.push(messages.repeatSelectedFailed(options.failedRepeatIndex, repeatTotal));
+    } else {
+      bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, repeatTotal));
+    }
   } else if (report.repeatsFailed > 0) {
-    bannerParts.push(`repeats failed: ${report.repeatsFailed}/${report.repeat}`);
+    bannerParts.push(messages.repeatsFailedSummary(report.repeatsFailed, report.repeat));
   }
   out.push(bannerParts.join("  "));
 

@@ -45,17 +45,14 @@ export function createRunCommand(): CommandDef {
       description: "Run one or more scenarios against the configured target.",
     },
     args: {
-      seed: { type: "string", description: "PRNG seed (printed either way)" },
-      repeat: { type: "string", description: "Repeat the scenario N times" },
-      "repeat-index": { type: "string", description: "Run a single repeat index (1-based)" },
-      reporter: { type: "string", description: "Report format (terminal)", default: "terminal" },
-      out: { type: "string", description: "Write the report to a file" },
-      "allow-remote-target": { type: "string", description: "Allow a non-local target hostname" },
-      "stable-ids": { type: "boolean", description: "Disable per-run id nonce" },
-      "timeout-ms": {
-        type: "string",
-        description: "Per-delivery HTTP timeout in milliseconds (default 10000)",
-      },
+      seed: { type: "string", description: messages.runArgSeed },
+      repeat: { type: "string", description: messages.runArgRepeat },
+      "repeat-index": { type: "string", description: messages.runArgRepeatIndex },
+      reporter: { type: "string", description: messages.runArgReporter, default: "terminal" },
+      out: { type: "string", description: messages.runArgOut },
+      "allow-remote-target": { type: "string", description: messages.runArgAllowRemoteTarget },
+      "stable-ids": { type: "boolean", description: messages.runArgStableIds },
+      "timeout-ms": { type: "string", description: messages.runArgTimeoutMs },
     },
     async run(ctx) {
       const positional = ctx.args._ ?? [];
@@ -89,9 +86,17 @@ export function createRunCommand(): CommandDef {
       const outPath = ctx.args.out as string | undefined;
 
       const cwd = process.cwd();
-      const project = await loadProjectConfig(cwd);
-      const engine = await createEngine();
-      const refs = await expandScenarioArgs(cwd, positional);
+      let project: Awaited<ReturnType<typeof loadProjectConfig>>;
+      let engine: Awaited<ReturnType<typeof createEngine>>;
+      let refs: string[];
+      try {
+        project = await loadProjectConfig(cwd);
+        engine = await createEngine();
+        refs = await expandScenarioArgs(cwd, positional);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(exitCodeFor(error));
+      }
 
       let lastExit: (typeof ExitCode)[keyof typeof ExitCode] = ExitCode.Ok;
 
@@ -120,11 +125,6 @@ export function createRunCommand(): CommandDef {
         const effectiveSeed = seedFlag ?? scenario.seed;
         const effectiveRepeat = scenario.repeat ?? repeatFlag ?? 1;
 
-        if (repeatIndex !== undefined && repeatIndex > effectiveRepeat) {
-          console.error(messages.repeatIndexOutOfRange(repeatIndex, effectiveRepeat));
-          process.exit(ExitCode.Config);
-        }
-
         let outcome: Awaited<ReturnType<typeof engine.run>>;
         try {
           outcome = await engine.run({
@@ -145,8 +145,7 @@ export function createRunCommand(): CommandDef {
         console.log(messages.runSeedLine(outcome.report.seed));
 
         const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
-        const scenarioRepeat =
-          outcome.scenarioRepeat ?? (effectiveRepeat > 1 ? effectiveRepeat : undefined);
+        const scenarioRepeat = outcome.scenarioRepeat;
         let failedRepeatIndex = outcome.failedRepeatIndex;
         if (failedRepeatIndex === undefined && outcome.report.status !== "passed") {
           failedRepeatIndex = repeatIndex;
@@ -155,6 +154,7 @@ export function createRunCommand(): CommandDef {
         const text = renderTerminalReport(outcome.report, {
           scenarioRef,
           ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
+          ...(repeatIndex !== undefined ? { repeatSelection: true } : {}),
           ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
           ...(outcome.notes.length > 0 ? { notes: outcome.notes } : {}),
           color: process.stdout.isTTY,

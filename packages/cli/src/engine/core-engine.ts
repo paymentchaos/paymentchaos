@@ -1,11 +1,9 @@
 import {
   compilePlan,
-  PaymentChaosError,
   type RunOutcome,
   type RunScenarioOptions,
   runScenario,
 } from "@paymentchaos/core";
-import { messages } from "../messages.ts";
 import type { ProviderRegistry } from "./registry.ts";
 import type {
   FlowListing,
@@ -14,23 +12,6 @@ import type {
   RunEngineOptions,
   RunEngineResult,
 } from "./types.ts";
-
-/** Core PR adds this field; forward at runtime until types re-export it. */
-type RunScenarioOptionsWithRepeatIndex = RunScenarioOptions & {
-  readonly repeatIndex?: number;
-};
-
-function assertRepeatIndexInRange(repeatIndex: number | undefined, repeat: number): void {
-  if (repeatIndex === undefined) {
-    return;
-  }
-  if (repeatIndex < 1 || repeatIndex > repeat) {
-    throw new PaymentChaosError(
-      "CONFIG_INVALID",
-      messages.repeatIndexOutOfRange(repeatIndex, repeat),
-    );
-  }
-}
 
 function failedRepeatIndex(outcome: RunOutcome): number | undefined {
   const first = outcome.repeats.find((repeat) => !repeat.pass);
@@ -41,10 +22,8 @@ function failedRepeatIndex(outcome: RunOutcome): number | undefined {
 export function createCoreEngine(registry: ProviderRegistry): PaymentChaosEngine {
   return {
     async run(options: RunEngineOptions): Promise<RunEngineResult> {
-      assertRepeatIndexInRange(options.repeatIndex, options.repeat);
-
       const adapter = registry.getAdapter(options.scenario.provider);
-      const runOptions: RunScenarioOptionsWithRepeatIndex = {
+      const runOptions: RunScenarioOptions = {
         adapter,
         cwd: options.cwd,
         ...(options.seed !== undefined ? { seed: options.seed } : {}),
@@ -60,11 +39,13 @@ export function createCoreEngine(registry: ProviderRegistry): PaymentChaosEngine
 
       const outcome = await runScenario(options.scenario, runOptions);
       const failedIndex = failedRepeatIndex(outcome);
+      const scenarioRepeat =
+        options.repeatIndex !== undefined || options.repeat > 1 ? options.repeat : undefined;
       return {
         report: outcome.report,
         notes: outcome.notes,
         ...(failedIndex === undefined ? {} : { failedRepeatIndex: failedIndex }),
-        ...(options.repeat > 1 ? { scenarioRepeat: options.repeat } : {}),
+        ...(scenarioRepeat === undefined ? {} : { scenarioRepeat }),
       };
     },
 
