@@ -8,3 +8,9 @@ export {
   FAKE_SIGNATURE_HEADER,
   type FakeProviderOptions,
 } from "./fake-provider.ts";
+export {
+  type RecordedRequest,
+  type RecordingHandler,
+  type RecordingServer,
+  startRecordingServer,
+} from "./recording-server.ts";

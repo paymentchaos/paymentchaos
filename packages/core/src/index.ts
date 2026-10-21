@@ -3,6 +3,12 @@
  * built behind them. Export narrowly; internals stay internal.
  */
 export * from "./contracts/index.ts";
+export {
+  type DeliveryOutcome,
+  type ExecuteOptions,
+  type ExecutionResult,
+  executePlan,
+} from "./executor/execute.ts";
 export { messages } from "./messages.ts";
 export type {
   ChaosOperatorDefinition,
@@ -15,7 +21,14 @@ export {
   type OperatorRegistry,
   operatorName,
 } from "./operators/registry.ts";
+export {
+  type CompiledPlan,
+  type CompileOptions,
+  compilePlan,
+  DEFAULT_CURRENCY,
+} from "./plan/compile.ts";
 export { createDraft, normalizeDraft, type PlanDraft } from "./plan/draft.ts";
+export { hashPlan, PLAN_FORMAT_VERSION, type PlanHashInput } from "./plan/hash.ts";
 export { createLogicalClock, LOGICAL_EPOCH } from "./runtime/clock.ts";
 export {
   createIdFactory,

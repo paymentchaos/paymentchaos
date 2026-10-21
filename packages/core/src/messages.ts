@@ -38,4 +38,24 @@ export const messages = {
     `Chaos operator "${operator}" targets event "${eventType}", but flow "${flow}" never delivers it. Use one of: ${available.join(", ")}.`,
   chaosOperatorUnknown: (name: string, known: readonly string[]) =>
     `Unknown chaos operator "${name}". Known operators: ${known.join(", ")}.`,
+  providerMismatch: (scenarioProvider: string, adapterId: string) =>
+    `Scenario declares provider "${scenarioProvider}" but was compiled with the "${adapterId}" adapter.`,
+  flowUnknown: (flow: string, provider: string, flows: readonly string[]) =>
+    `Provider "${provider}" has no flow "${flow}". Available flows: ${flows.join(", ")}. Run \`paymentchaos flows ${provider}\` to list them.`,
+  apiVersionUnsupported: (apiVersion: string, provider: string, supported: readonly string[]) =>
+    `Provider "${provider}" does not support apiVersion "${apiVersion}". Supported: ${supported.join(", ")}.`,
+  eventIdDuplicated: (provider: string, eventId: string) =>
+    `Provider adapter "${provider}" generated event id ${eventId} twice in one flow. This is an adapter bug; please report it.`,
+  encodeNotByteStable: (provider: string, eventType: string) =>
+    `Provider adapter "${provider}" encoded ${eventType} to different bytes on two calls. encode() must be deterministic; this is an adapter bug.`,
+  timeScaleInvalid: (timeScale: number) =>
+    `timeScale must be a finite number >= 0 (1 = real time, 0.001 = 1000x faster), got ${String(timeScale)}.`,
+  bodyMissing: (eventId: string) =>
+    `No encoded body for event ${eventId}. Execute the CompiledPlan returned by compilePlan, unmodified.`,
+  signingFailed: (provider: string, eventType: string, reason: string) =>
+    `The "${provider}" adapter failed to sign ${eventType}: ${reason}`,
+  targetUnreachable: (host: string, code: string) =>
+    `Could not connect to the target at ${host} (${code}). Is your app running and listening on that address?`,
+  deliveryTimedOut: (millis: number) => `no response within ${String(millis)} ms`,
+  deliveryFailed: (reason: string) => `request failed: ${reason}`,
 } as const;
