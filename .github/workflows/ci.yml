@@ -32,7 +32,7 @@ jobs:
           node-version: ${{ matrix.node }}
       # Node 22.12's bundled Corepack ships stale npm registry signing keys and cannot
       # fetch pnpm ("Cannot find matching keyid"). Pin a current Corepack first.
-      - run: npm install -g corepack@0.36.0
+      - run: npm install -g corepack@0.36.0 --force
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24.22.0"
-      - run: npm install -g corepack@0.36.0
+      - run: npm install -g corepack@0.36.0 --force
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
