@@ -14,19 +14,23 @@ export function runVerifyScript(options: {
   env?: Record<string, string>;
 }): Promise<VerifyRunResult> {
   const verifyPath = join(options.exampleDir, "src", "verify.ts");
-  const env = {
-    ...process.env,
+  const env: Record<string, string | undefined> = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
     PAYMENTCHAOS_ID_CUSTOMER: options.customerId,
-    PAYMENTCHAOS_STATE_BASE_URL: options.baseUrl,
     ...options.env,
   };
 
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", "tsx", verifyPath], {
-      cwd: options.exampleDir,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", verifyPath, options.customerId, "--base-url", options.baseUrl],
+      {
+        cwd: options.exampleDir,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     let stdout = "";
     let stderr = "";

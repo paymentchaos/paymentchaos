@@ -3,8 +3,8 @@
 The **positive** reference Stripe subscription webhook handler paired with `stripe-express-naive`. Same routes and data model, without the four M1 bug classes.
 
 - `POST /webhooks/stripe` — verifies raw body bytes, then processes events
-- `GET /__test__/state?customer=<internal id>` — JSON snapshot for assertions
-- `npm run verify` — command assertion script ([ADR 0005](../../docs/adr/0005-assertions.md))
+- `GET /__test__/state?customer=<cus_… or internal id>` — JSON snapshot for assertions
+- `npm run verify -- <cus_…> --base-url http://127.0.0.1:PORT` — command assertion ([ADR 0005](../../docs/adr/0005-assertions.md))
 
 ## Run locally
 
@@ -21,7 +21,7 @@ pnpm start
 |---|---|
 | Duplicate `invoice.paid` grants twice | Atomic `INSERT OR IGNORE` on `event.id` before any entitlement or ledger writes |
 | Check-then-insert race on subscription events | Same atomic event claim for every event type |
-| Stale cancellation wins | Subscription upsert only applies status when `event.created` is newer than stored |
+| Stale cancellation wins | Subscription upsert only applies status **and** `stripe_subscription_id` when `event.created` is newer than stored |
 | `JSON.stringify(req.body)` verification | `express.raw` + HMAC over exact bytes ([Stripe docs](https://docs.stripe.com/webhooks/signatures)) |
 
 ## Unicode and byte-exact fixtures

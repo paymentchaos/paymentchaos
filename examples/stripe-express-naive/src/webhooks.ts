@@ -52,9 +52,25 @@ function grantRenewalEntitlement(
   ).run(customerId, amount, currency, eventId);
 }
 
+function recordSubscriptionTransition(
+  db: DatabaseSync,
+  customerId: string,
+  eventId: string,
+  stripeSubId: string,
+  status: string,
+  eventCreated: number,
+): void {
+  db.prepare(
+    `INSERT INTO subscription_transitions
+       (customer_id, event_id, stripe_subscription_id, status, event_created)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(customerId, eventId, stripeSubId, status, eventCreated);
+}
+
+/** Widens the check-then-insert window so concurrent deliveries race in golden tests. */
 async function yieldEventLoop(): Promise<void> {
   await new Promise<void>((resolve) => {
-    setImmediate(resolve);
+    setTimeout(resolve, 30);
   });
 }
 
@@ -89,8 +105,11 @@ export async function handleStripeEvent(db: DatabaseSync, event: StripeEvent): P
       }
       await yieldEventLoop();
 
+      // Audited write: exposes concurrent double-processing even when the row upsert looks identical.
+      recordSubscriptionTransition(db, customerId, event.id, stripeSubId, status, event.created);
+
       // BUG 3: apply subscription status without ordering by event.created — an older
-      // cancellation overwrites a newer active renewal.
+      // cancellation on a prior subscription id can clobber a newer active renewal.
       db.prepare(
         `INSERT INTO subscriptions (customer_id, stripe_subscription_id, status, last_event_created)
          VALUES (?, ?, ?, ?)

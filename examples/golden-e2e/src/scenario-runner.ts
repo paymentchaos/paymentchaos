@@ -1,7 +1,6 @@
 /**
- * Thin runner boundary for golden end-to-end tests.
- * Wire `createScenarioRunner()` to the real `paymentchaos run stripe-subscription-renewal`
- * CLI once the engine stream lands; keep tests importing this module only.
+ * Runner boundary for golden end-to-end tests. Uses the built CLI when
+ * `GOLDEN_E2E_RUNNER=cli`, otherwise executes `@paymentchaos/core` with the Stripe adapter.
  */
 export interface StripeSubscriptionRenewalIds {
   readonly customer: string;
@@ -12,7 +11,7 @@ export interface StripeSubscriptionRenewalIds {
 export interface StripeSubscriptionRenewalRequest {
   readonly targetWebhookUrl: string;
   readonly webhookSecret: string;
-  readonly ids: StripeSubscriptionRenewalIds;
+  readonly ids?: StripeSubscriptionRenewalIds;
   readonly seed: number;
 }
 
@@ -22,6 +21,9 @@ export interface StripeSubscriptionRenewalResult {
     eventId: string;
     statusCode: number;
   }>;
+  readonly ids: Readonly<Record<string, string>>;
+  readonly stdout: string;
+  readonly exitCode: number;
 }
 
 export interface ScenarioRunner {
@@ -41,7 +43,7 @@ export function registerScenarioRunner(next: ScenarioRunnerFactory): void {
 export function createScenarioRunner(): ScenarioRunner {
   if (!factory) {
     throw new Error(
-      "No scenario runner registered. golden-e2e registers a stub in test/setup; wire paymentchaos CLI here when available.",
+      "No scenario runner registered. golden-e2e registers a runner in test/setup.ts.",
     );
   }
   return factory();

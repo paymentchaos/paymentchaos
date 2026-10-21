@@ -59,6 +59,21 @@ function grantRenewalEntitlement(
   ).run(customerId, amount, currency, eventId);
 }
 
+function recordSubscriptionTransition(
+  db: DatabaseSync,
+  customerId: string,
+  eventId: string,
+  stripeSubId: string,
+  status: string,
+  eventCreated: number,
+): void {
+  db.prepare(
+    `INSERT INTO subscription_transitions
+       (customer_id, event_id, stripe_subscription_id, status, event_created)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(customerId, eventId, stripeSubId, status, eventCreated);
+}
+
 function applySubscriptionSnapshot(
   db: DatabaseSync,
   customerId: string,
@@ -70,7 +85,11 @@ function applySubscriptionSnapshot(
     `INSERT INTO subscriptions (customer_id, stripe_subscription_id, status, last_event_created)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(customer_id) DO UPDATE SET
-       stripe_subscription_id = excluded.stripe_subscription_id,
+       stripe_subscription_id = CASE
+         WHEN excluded.last_event_created >= subscriptions.last_event_created
+         THEN excluded.stripe_subscription_id
+         ELSE subscriptions.stripe_subscription_id
+       END,
        status = CASE
          WHEN excluded.last_event_created >= subscriptions.last_event_created
          THEN excluded.status
@@ -106,6 +125,7 @@ export function handleStripeEvent(db: DatabaseSync, event: StripeEvent): void {
         event.type === "customer.subscription.deleted"
           ? "canceled"
           : (subscription.status as string);
+      recordSubscriptionTransition(db, customerId, event.id, stripeSubId, status, event.created);
       applySubscriptionSnapshot(db, customerId, stripeSubId, status, event.created);
       break;
     }
