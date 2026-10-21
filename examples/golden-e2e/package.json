@@ -1,0 +1,15 @@
+{
+  "name": "@paymentchaos/golden-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@paymentchaos/example-stripe-express-correct": "workspace:*",
+    "@paymentchaos/example-stripe-express-naive": "workspace:*",
+    "tsx": "4.20.6",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@paymentchaos/example-stripe-express-correct",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./boot": "./src/boot.ts"
+  },
+  "scripts": {
+    "start": "node --import tsx src/index.ts",
+    "verify": "node --import tsx src/verify.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "express": "5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "tsx": "4.20.6"
+  }
+}
