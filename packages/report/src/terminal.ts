@@ -8,6 +8,8 @@ export interface TerminalRenderOptions {
   readonly scenarioRef: string;
   /** 1-based index of the failed repeat, when `report.repeat` > 1. */
   readonly failedRepeatIndex?: number;
+  /** Caveats from {@link RunOutcome.notes} (core run surface). */
+  readonly notes?: readonly string[];
   readonly color?: boolean;
 }
 
@@ -116,6 +118,14 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
   out.push(messages.assertionsHeading);
   for (const assertion of report.assertions) {
     out.push(...renderAssertion(assertion, options, report, useColor));
+  }
+
+  if (options.notes !== undefined && options.notes.length > 0) {
+    out.push("");
+    out.push(messages.notesHeading);
+    for (const note of options.notes) {
+      out.push(messages.noteLine(note));
+    }
   }
 
   out.push("");

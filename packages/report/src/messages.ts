@@ -25,4 +25,6 @@ export const messages = {
   seedPlan: (seed: number, planHash: string) => `seed=${seed}  plan=${planHash}`,
   statusNoResponse: "—",
   chaosNone: "—",
+  notesHeading: "Notes",
+  noteLine: (text: string) => `  ${text}`,
 } as const;

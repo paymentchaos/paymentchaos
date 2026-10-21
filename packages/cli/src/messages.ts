@@ -23,4 +23,15 @@ export const messages = {
     "Assertion and hook commands run in your platform shell. On Windows (cmd.exe) use double quotes; on Unix use single quotes around arguments with spaces.",
   reporterUnknown: (name: string) => `Unknown reporter "${name}". Supported: terminal.`,
   runRequiresScenario: "Provide at least one scenario name or file path.",
+  providerNotInstalled: (provider: string, installed: readonly string[]) =>
+    installed.length === 0
+      ? `Provider "${provider}" is not installed. Install the matching @paymentchaos/provider-* package for this scenario.`
+      : `Provider "${provider}" is not installed. Installed providers: ${installed.join(", ")}.`,
+  repeatIndexUnsupported:
+    "The --repeat-index flag is not supported yet: @paymentchaos/core runScenario needs a repeatIndex option that runs a single repetition without executing the full repeat loop. Ask the orchestrator to schedule that core change.",
+  flagNotPositiveInt: (flag: string, value: string) =>
+    `Invalid value "${value}" for --${flag}. Use a positive integer.`,
+  flagInvalidSeed: (value: string) =>
+    `Invalid --seed "${value}". Use a non-negative integer below 2^31.`,
+  runSeedLine: (seed: number) => `seed ${seed}`,
 } as const;

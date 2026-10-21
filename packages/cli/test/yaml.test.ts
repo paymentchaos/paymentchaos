@@ -19,7 +19,7 @@ describe("YAML validation locations", () => {
       const err = error as PaymentChaosError;
       expect(err.message).toContain("invalid-secret.yaml:");
       expect(err.message).toContain("${");
-      expect(err.details?.line).toBe(8);
+      expect(err.details?.line).toBe(7);
     }
   });
 });

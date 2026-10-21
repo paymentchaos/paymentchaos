@@ -19,7 +19,11 @@ export const BUILTIN_SCENARIOS: readonly Scenario[] = [
     name: "stripe-cancellation-out-of-order",
     provider: "stripe",
     flow: "cancellation-renewal-out-of-order",
-    chaos: [{ reorder: ["customer.subscription.deleted", "invoice.paid"] }],
+    chaos: [
+      {
+        reorder: ["invoice.paid", "customer.subscription.updated", "customer.subscription.deleted"],
+      },
+    ],
     repeat: 1,
   },
   {
