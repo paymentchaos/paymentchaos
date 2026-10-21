@@ -4,6 +4,18 @@
  */
 export * from "./contracts/index.ts";
 export { messages } from "./messages.ts";
+export type {
+  ChaosOperatorDefinition,
+  OperatorName,
+  OperatorParams,
+} from "./operators/definition.ts";
+export {
+  applyChaos,
+  defaultOperatorRegistry,
+  type OperatorRegistry,
+  operatorName,
+} from "./operators/registry.ts";
+export { createDraft, normalizeDraft, type PlanDraft } from "./plan/draft.ts";
 export { createLogicalClock, LOGICAL_EPOCH } from "./runtime/clock.ts";
 export {
   createIdFactory,
