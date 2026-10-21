@@ -1,0 +1,1 @@
+{"id":"evt_pc_unicode_sub","object":"event","api_version":"2025-09-30.clover","created":1730000450,"type":"customer.subscription.updated","livemode":false,"data":{"object":{"id":"sub_pc_e2e_001","object":"subscription","customer":"cus_pc_e2e_001","status":"active","metadata":{"note":"Zoë Ångström — 山田太郎"}}}}
