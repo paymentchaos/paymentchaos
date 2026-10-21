@@ -33,6 +33,8 @@ export interface RunEngineResult {
   readonly notes: readonly string[];
   /** 1-based index of the first failed repeat, when any repetition failed. */
   readonly failedRepeatIndex?: number;
+  /** Scenario/--repeat count used for reproduce when a single index was selected. */
+  readonly scenarioRepeat?: number;
 }
 
 /** Single integration point for `@paymentchaos/core` execution. */

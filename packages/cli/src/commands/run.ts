@@ -120,6 +120,11 @@ export function createRunCommand(): CommandDef {
         const effectiveSeed = seedFlag ?? scenario.seed;
         const effectiveRepeat = scenario.repeat ?? repeatFlag ?? 1;
 
+        if (repeatIndex !== undefined && repeatIndex > effectiveRepeat) {
+          console.error(messages.repeatIndexOutOfRange(repeatIndex, effectiveRepeat));
+          process.exit(ExitCode.Config);
+        }
+
         let outcome: Awaited<ReturnType<typeof engine.run>>;
         try {
           outcome = await engine.run({
@@ -140,11 +145,16 @@ export function createRunCommand(): CommandDef {
         console.log(messages.runSeedLine(outcome.report.seed));
 
         const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
-        const failedRepeatIndex =
-          outcome.failedRepeatIndex ?? (outcome.report.repeatsFailed > 0 ? repeatIndex : undefined);
+        const scenarioRepeat =
+          outcome.scenarioRepeat ?? (effectiveRepeat > 1 ? effectiveRepeat : undefined);
+        let failedRepeatIndex = outcome.failedRepeatIndex;
+        if (failedRepeatIndex === undefined && outcome.report.status !== "passed") {
+          failedRepeatIndex = repeatIndex;
+        }
 
         const text = renderTerminalReport(outcome.report, {
           scenarioRef,
+          ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
           ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
           ...(outcome.notes.length > 0 ? { notes: outcome.notes } : {}),
           color: process.stdout.isTTY,

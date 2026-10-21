@@ -120,17 +120,16 @@ describe("core engine integration", () => {
     expect(exitCodeFor(new PaymentChaosError("CONFIG_INVALID", "bad"))).toBe(ExitCode.Config);
   });
 
-  it("rejects --repeat-index until core supports it", async () => {
+  it("rejects repeat-index above the effective repeat count", async () => {
     const adapter = createFakeProvider({ env, flows: STRIPE_LIKE_FLOWS });
     const engine = createCoreEngine(testRegistry(adapter));
-    server = await startRecordingServer();
     await expect(
       engine.run({
-        scenario: baseScenario(server.url),
+        scenario: baseScenario("http://127.0.0.1:9/hook"),
         cwd: process.cwd(),
         seed: 1,
-        repeat: 5,
-        repeatIndex: 2,
+        repeat: 3,
+        repeatIndex: 4,
         env,
       }),
     ).rejects.toMatchObject({ code: "CONFIG_INVALID" });

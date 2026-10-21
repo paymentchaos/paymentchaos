@@ -50,6 +50,7 @@ describe("renderTerminalReport", () => {
   it("matches the BUILD_PROMPT §13 failure snapshot (timings normalized)", () => {
     const text = renderTerminalReport(failureReport, {
       scenarioRef: "renewal.yaml",
+      scenarioRepeat: 20,
       failedRepeatIndex: 4,
       color: false,
     });
@@ -62,7 +63,7 @@ describe("renderTerminalReport", () => {
       ✗ Duplicate invoice.paid delivery created two entitlement records.
           expected: 1
           observed: 2
-          reproduce: npx paymentchaos run renewal.yaml --seed 1337 --repeat-index 4
+          reproduce: npx paymentchaos run renewal.yaml --seed 1337 --repeat 20 --repeat-index 4
 
       PAYMENTCHAOS FAILED  seed=1337  plan=7f3a…  repeat 4/20 failed
       "

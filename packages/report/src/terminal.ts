@@ -6,6 +6,8 @@ import { messages } from "./messages.ts";
 export interface TerminalRenderOptions {
   /** Scenario file path or built-in name used in the reproduce command. */
   readonly scenarioRef: string;
+  /** Original `--repeat` / scenario repeat (for reproduce when one index was selected). */
+  readonly scenarioRepeat?: number;
   /** 1-based index of the failed repeat, when `report.repeat` > 1. */
   readonly failedRepeatIndex?: number;
   /** Caveats from {@link RunOutcome.notes} (core run surface). */
@@ -40,9 +42,14 @@ function formatChaosTags(tags: readonly string[]): string {
 function buildReproduceCommand(
   scenarioRef: string,
   seed: number,
+  scenarioRepeat: number | undefined,
   failedRepeatIndex: number | undefined,
 ): string {
   const parts = ["npx", "paymentchaos", "run", scenarioRef, "--seed", String(seed)];
+  const totalRepeat = scenarioRepeat ?? 0;
+  if (totalRepeat > 1) {
+    parts.push("--repeat", String(totalRepeat));
+  }
   if (failedRepeatIndex !== undefined && failedRepeatIndex > 0) {
     parts.push("--repeat-index", String(failedRepeatIndex));
   }
@@ -80,7 +87,12 @@ function renderAssertion(
   if (report.status === "failed" || report.status === "error") {
     lines.push(
       messages.reproduce(
-        buildReproduceCommand(options.scenarioRef, report.seed, options.failedRepeatIndex),
+        buildReproduceCommand(
+          options.scenarioRef,
+          report.seed,
+          options.scenarioRepeat,
+          options.failedRepeatIndex,
+        ),
       ),
     );
   }
@@ -139,8 +151,9 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
         : messages.failedBanner,
     messages.seedPlan(report.seed, shortPlanHash(report.planHash)),
   ];
+  const repeatTotal = options.scenarioRepeat ?? report.repeat;
   if (report.repeatsFailed > 0 && options.failedRepeatIndex !== undefined) {
-    bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, report.repeat));
+    bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, repeatTotal));
   } else if (report.repeatsFailed > 0) {
     bannerParts.push(`repeats failed: ${report.repeatsFailed}/${report.repeat}`);
   }

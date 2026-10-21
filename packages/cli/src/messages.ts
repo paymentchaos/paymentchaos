@@ -27,8 +27,8 @@ export const messages = {
     installed.length === 0
       ? `Provider "${provider}" is not installed. Install the matching @paymentchaos/provider-* package for this scenario.`
       : `Provider "${provider}" is not installed. Installed providers: ${installed.join(", ")}.`,
-  repeatIndexUnsupported:
-    "The --repeat-index flag is not supported yet: @paymentchaos/core runScenario needs a repeatIndex option that runs a single repetition without executing the full repeat loop. Ask the orchestrator to schedule that core change.",
+  repeatIndexOutOfRange: (index: number, repeat: number) =>
+    `--repeat-index ${String(index)} is out of range for this run (use 1 through ${String(repeat)}).`,
   flagNotPositiveInt: (flag: string, value: string) =>
     `Invalid value "${value}" for --${flag}. Use a positive integer.`,
   flagInvalidSeed: (value: string) =>

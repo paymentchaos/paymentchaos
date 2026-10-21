@@ -41,6 +41,7 @@ pnpm exec paymentchaos plan paymentchaos/scenarios/renewal.yaml --seed 1337
 # Run scenarios (prints the seed, dispatches webhooks, runs assertions)
 pnpm exec paymentchaos run stripe-subscription-renewal
 pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 5
+pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --seed 1337 --repeat 20 --repeat-index 4
 pnpm exec paymentchaos run paymentchaos/scenarios/renewal.yaml --timeout-ms 15000
 ```
 
