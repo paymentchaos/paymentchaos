@@ -14,3 +14,4 @@ Changes to accepted decisions that touch `packages/core/src/contracts/**` also r
 | [0006](0006-safety.md) | Safety: target guard and secret handling | Accepted |
 | [0007](0007-money-and-time.md) | Money and time conventions | Accepted |
 | [0008](0008-toolchain.md) | Toolchain and versions | Accepted |
+| [0009](0009-stripe-delivery-profile-unknowns.md) | Represent unpublished provider delivery timing | Accepted |

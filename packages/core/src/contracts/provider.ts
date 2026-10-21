@@ -14,14 +14,23 @@ export interface SigningKeySet {
 }
 
 /**
- * How a provider delivers webhooks: used to shape realistic retries, timeouts and
- * acceptance. Values come from the provider's official documentation.
+ * How a provider delivers webhooks, as documented by the provider. Values come from
+ * official documentation; a value the provider does not publish is `null`, never a
+ * guessed number. This is metadata: the executor's local request timeout and any
+ * simulated retries are PaymentChaos settings, not read from here (ADR 0009).
  */
 export interface DeliveryProfile {
-  /** Per-attempt timeout the provider itself applies, in milliseconds. */
-  readonly timeoutMillis: number;
-  /** Retry backoff schedule in milliseconds between attempts. */
-  readonly retryScheduleMillis: readonly number[];
+  /**
+   * Per-attempt timeout the provider itself applies, in milliseconds, or `null` when
+   * the provider does not publish one.
+   */
+  readonly timeoutMillis: number | null;
+  /**
+   * Exact intervals in milliseconds between the provider's automatic attempts. `null`
+   * means the exact intervals are unpublished or unknown; `[]` means the provider
+   * documents that it makes no automatic retries.
+   */
+  readonly retryScheduleMillis: readonly number[] | null;
   /** Allowed signature timestamp skew, in seconds, if the provider enforces one. */
   readonly signatureToleranceSec?: number;
   /** HTTP status codes the provider treats as successful acknowledgement. */

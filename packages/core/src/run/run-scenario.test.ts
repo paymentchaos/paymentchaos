@@ -172,6 +172,40 @@ describe("runScenario", () => {
     expect(run.report.assertions[0]?.message).toMatch(/HTTP 409/);
   });
 
+  it("forwards the local request timeout to every delivery", async () => {
+    server = await startRecordingServer(async (_req, res) => {
+      await sleep(400);
+      res.writeHead(200).end();
+    });
+    const run = await runScenario(
+      scenario(server.url, [], { assert: undefined, hooks: undefined }),
+      { adapter, env, seed: 1, timeoutMillis: 100 },
+    );
+    expect(run.report.status).toBe("failed");
+    expect(run.report.deliveries.map((d) => d.error)).toEqual([
+      "no response within 100 ms",
+      "no response within 100 ms",
+    ]);
+  });
+
+  it("rejects an invalid local timeout before secrets, hooks or sends", async () => {
+    server = await startRecordingServer();
+    const marker = join(dir, "timeout-hook-ran");
+    const hook = node(
+      writeScript(
+        "mark-timeout.mjs",
+        `import { writeFileSync } from "node:fs"; writeFileSync(process.argv[2], "x");`,
+      ),
+      marker,
+    );
+    const s = scenario(server.url, [], { hooks: { beforeEach: hook } });
+    await expect(runScenario(s, { adapter, env: {}, timeoutMillis: 0 })).rejects.toMatchObject({
+      code: "CONFIG_INVALID",
+    });
+    expect(existsSync(marker)).toBe(false);
+    expect(server.requests).toHaveLength(0);
+  });
+
   it("uses the same ids every repetition with stableIds", async () => {
     server = await startRecordingServer();
     const run = await runScenario(

@@ -19,7 +19,12 @@ import {
   type SigningKeySet,
   toIso8601,
 } from "../contracts/index.ts";
-import { type DeliveryOutcome, type ExecutionResult, executePlan } from "../executor/execute.ts";
+import {
+  type DeliveryOutcome,
+  type ExecutionResult,
+  executePlan,
+  resolveRequestTimeout,
+} from "../executor/execute.ts";
 import { messages } from "../messages.ts";
 import type { OperatorRegistry } from "../operators/registry.ts";
 import { compilePlan } from "../plan/compile.ts";
@@ -37,6 +42,8 @@ export interface RunScenarioOptions {
   readonly stableIds?: boolean;
   readonly allowRemoteTarget?: string | readonly string[];
   readonly timeScale?: number;
+  /** Local per-request timeout for each delivery; see `ExecuteOptions.timeoutMillis`. */
+  readonly timeoutMillis?: number;
   /** Working directory for hooks and the assertion command. */
   readonly cwd?: string;
   /** Extra parent variables to pass to hooks and the assertion command. */
@@ -81,7 +88,10 @@ export function generateSeed(): number {
   return randomInt(0, 2 ** 31);
 }
 
-/** Built-in check 1: every validly signed delivery is accepted within the timeout budget. */
+/**
+ * Built-in check 1: every validly signed delivery is accepted within PaymentChaos's local
+ * request timeout. That timeout is a simulation setting, not a provider guarantee.
+ */
 export function deliveriesAcceptedCheck(execution: ExecutionResult): AssertionResult {
   const rejected = execution.deliveries.filter((d) => !d.accepted);
   const total = execution.deliveries.length;
@@ -123,6 +133,7 @@ export async function runScenario(
     options.allowRemoteTarget === undefined ? {} : { allowRemoteTarget: options.allowRemoteTarget };
   // Before any hook or send: a blocked target must have no side effects at all.
   assertTargetAllowed(target.url, guard);
+  const timeoutMillis = resolveRequestTimeout(options.timeoutMillis);
   if (target.secret === undefined) {
     throw new PaymentChaosError("SECRET_MISSING", messages.targetSecretMissing(scenario.provider));
   }
@@ -205,6 +216,7 @@ export async function runScenario(
       keys,
       env,
       ...guard,
+      timeoutMillis,
       ...(options.timeScale === undefined ? {} : { timeScale: options.timeScale }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       onDelivery: (outcome) => options.onEvent?.({ type: "delivery", index, outcome }),

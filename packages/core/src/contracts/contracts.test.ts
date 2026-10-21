@@ -150,7 +150,14 @@ describe("type-level contract conformance", () => {
 
     const op = { duplicate: { event: "invoice.paid", times: 1 } } satisfies ChaosOperator;
 
+    // Unpublished provider timing is `null`, not a numeric sentinel (ADR 0009).
+    const unpublished = {
+      ...fake,
+      deliveryProfile: { ...fake.deliveryProfile, timeoutMillis: null, retryScheduleMillis: null },
+    } satisfies ProviderAdapter;
+
     expect(fake.id).toBe("fake");
+    expect(unpublished.deliveryProfile.timeoutMillis).toBeNull();
     expect("duplicate" in op).toBe(true);
     expect(asInstant(0)).toBe(0);
   });

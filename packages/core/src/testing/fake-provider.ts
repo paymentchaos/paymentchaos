@@ -26,7 +26,8 @@ export interface FakeProviderOptions {
   /** Where `${ENV_VAR}` secret references resolve. Defaults to `process.env`. */
   readonly env?: Env;
   readonly acceptedStatuses?: readonly number[];
-  readonly timeoutMillis?: number;
+  /** Provider metadata only; the executor's request timeout is set separately. */
+  readonly timeoutMillis?: number | null;
 }
 
 export const DEFAULT_FAKE_FLOWS: Readonly<Record<string, readonly string[]>> = {
@@ -59,7 +60,7 @@ export function createFakeProvider(options: FakeProviderOptions = {}): ProviderA
     apiVersions: ["2026-01-01"],
     flows,
     deliveryProfile: {
-      timeoutMillis: options.timeoutMillis ?? 10_000,
+      timeoutMillis: options.timeoutMillis ?? null,
       retryScheduleMillis: [60_000, 300_000],
       signatureToleranceSec: TOLERANCE_SEC,
       acceptedStatuses: options.acceptedStatuses ?? [200, 201, 202, 204],

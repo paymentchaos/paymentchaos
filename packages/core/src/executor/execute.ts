@@ -29,7 +29,11 @@ export interface ExecuteOptions {
   readonly allowRemoteTarget?: string | readonly string[];
   /** Wall time per logical millisecond: 0.001 turns a 3-day schedule into ~4.3 minutes. */
   readonly timeScale?: number;
-  /** Per-attempt budget. Defaults to the adapter's `deliveryProfile.timeoutMillis`. */
+  /**
+   * PaymentChaos's local per-request timeout, in whole milliseconds. Defaults to
+   * {@link DEFAULT_REQUEST_TIMEOUT_MS}. The adapter's `deliveryProfile.timeoutMillis` is
+   * provider metadata and never sets this budget (ADR 0009).
+   */
   readonly timeoutMillis?: number;
   readonly signal?: AbortSignal;
   /** Where secret references resolve, for the fail-fast check and redaction. */
@@ -54,6 +58,27 @@ export interface ExecutionResult {
   readonly finishedAt: string;
   /** In plan order (`seq`), regardless of completion order. */
   readonly deliveries: readonly DeliveryOutcome[];
+}
+
+/**
+ * PaymentChaos's default local per-request timeout. A simulation setting, not any
+ * provider's published timeout (ADR 0009).
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+/** `AbortSignal.timeout()` clamps larger delays to 1 ms, so they are rejected up front. */
+const MAX_REQUEST_TIMEOUT_MS = 2_147_483_647;
+
+/** Resolve and validate the local request timeout. Pure, so callers run it before any side effect. */
+export function resolveRequestTimeout(timeoutMillis: number | undefined): number {
+  const value = timeoutMillis ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  if (!Number.isInteger(value) || value < 1 || value > MAX_REQUEST_TIMEOUT_MS) {
+    throw new PaymentChaosError(
+      "CONFIG_INVALID",
+      messages.requestTimeoutInvalid(value, MAX_REQUEST_TIMEOUT_MS, DEFAULT_REQUEST_TIMEOUT_MS),
+    );
+  }
+  return value;
 }
 
 const BASE_HEADERS: Headers = { "content-type": "application/json", "user-agent": "PaymentChaos" };
@@ -99,14 +124,14 @@ export async function executePlan(
     options.url,
     options.allowRemoteTarget === undefined ? {} : { allowRemoteTarget: options.allowRemoteTarget },
   );
-  const env = options.env ?? process.env;
-  resolveSecret(options.keys.current, env);
-  const secrets = secretValues(options.keys, env);
+  const timeoutMillis = resolveRequestTimeout(options.timeoutMillis);
   const timeScale = options.timeScale ?? 1;
   if (!Number.isFinite(timeScale) || timeScale < 0) {
     throw new PaymentChaosError("CONFIG_INVALID", messages.timeScaleInvalid(timeScale));
   }
-  const timeoutMillis = options.timeoutMillis ?? adapter.deliveryProfile.timeoutMillis;
+  const env = options.env ?? process.env;
+  resolveSecret(options.keys.current, env);
+  const secrets = secretValues(options.keys, env);
   const accepted = new Set(adapter.deliveryProfile.acceptedStatuses);
   const now = options.now ?? Date.now;
   const dispatcher = options.dispatcher ?? new Agent();
