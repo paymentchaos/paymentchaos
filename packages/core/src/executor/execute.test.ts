@@ -14,7 +14,7 @@ import {
   type RecordingServer,
   startRecordingServer,
 } from "../testing/recording-server.ts";
-import { executePlan } from "./execute.ts";
+import { DEFAULT_REQUEST_TIMEOUT_MS, executePlan } from "./execute.ts";
 
 const env = { FAKE_SECRET: "whsec_executor_test" };
 const keys = { current: asSecretRef("${FAKE_SECRET}") };
@@ -120,6 +120,41 @@ describe("executePlan", () => {
       [204, null, true],
     ]);
   });
+
+  it("uses the local 10 s default, not the provider's timeout metadata", async () => {
+    expect(DEFAULT_REQUEST_TIMEOUT_MS).toBe(10_000);
+    const target = await serve(async (_req, res) => {
+      await sleep(150);
+      res.writeHead(200).end();
+    });
+    // Profile metadata far below the response time must not cut the request short.
+    for (const profileTimeout of [null, 50]) {
+      const metadataOnly = createFakeProvider({ env, timeoutMillis: profileTimeout });
+      const result = await executePlan(compile([]), metadataOnly, { url: target.url, keys, env });
+      expect(result.deliveries.map((d) => [d.statusCode, d.accepted])).toEqual([
+        [200, true],
+        [200, true],
+      ]);
+    }
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])(
+    "rejects local timeout %s as CONFIG_INVALID before secrets or network",
+    async (timeoutMillis) => {
+      const target = await serve();
+      const run = executePlan(compile([]), adapter, {
+        url: target.url,
+        keys,
+        env: {},
+        timeoutMillis,
+      });
+      await expect(run).rejects.toMatchObject({
+        code: "CONFIG_INVALID",
+        message: expect.stringContaining("timeoutMillis"),
+      });
+      expect(target.requests).toHaveLength(0);
+    },
+  );
 
   it("releases a concurrency group together behind a barrier", async () => {
     // The target holds every request until three are in flight, or 1 s passes.

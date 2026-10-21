@@ -50,6 +50,8 @@ export const messages = {
     `Provider adapter "${provider}" encoded ${eventType} to different bytes on two calls. encode() must be deterministic; this is an adapter bug.`,
   timeScaleInvalid: (timeScale: number) =>
     `timeScale must be a finite number >= 0 (1 = real time, 0.001 = 1000x faster), got ${String(timeScale)}.`,
+  requestTimeoutInvalid: (value: number, max: number, fallback: number) =>
+    `timeoutMillis (PaymentChaos's local per-request timeout) must be a whole number of milliseconds from 1 to ${String(max)}, got ${String(value)}. Omit it to use the ${String(fallback)} ms default.`,
   bodyMissing: (eventId: string) =>
     `No encoded body for event ${eventId}. Execute the CompiledPlan returned by compilePlan, unmodified.`,
   signingFailed: (provider: string, eventType: string, reason: string) =>
