@@ -52,6 +52,10 @@ export function createRunCommand(): CommandDef {
       out: { type: "string", description: "Write the report to a file" },
       "allow-remote-target": { type: "string", description: "Allow a non-local target hostname" },
       "stable-ids": { type: "boolean", description: "Disable per-run id nonce" },
+      "timeout-ms": {
+        type: "string",
+        description: "Per-delivery HTTP timeout in milliseconds (default 10000)",
+      },
     },
     async run(ctx) {
       const positional = ctx.args._ ?? [];
@@ -69,10 +73,12 @@ export function createRunCommand(): CommandDef {
       let seedFlag: number | undefined;
       let repeatFlag: number | undefined;
       let repeatIndex: number | undefined;
+      let timeoutMillis: number | undefined;
       try {
         seedFlag = parseOptionalSeed(ctx.args.seed);
         repeatFlag = parseOptionalPositiveInt(ctx.args.repeat, "repeat");
         repeatIndex = parseOptionalPositiveInt(ctx.args["repeat-index"], "repeat-index");
+        timeoutMillis = parseOptionalPositiveInt(ctx.args["timeout-ms"], "timeout-ms");
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(exitCodeFor(error));
@@ -124,6 +130,7 @@ export function createRunCommand(): CommandDef {
             ...(repeatIndex !== undefined ? { repeatIndex } : {}),
             ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
             ...(stableIds ? { stableIds: true } : {}),
+            ...(timeoutMillis !== undefined ? { timeoutMillis } : {}),
           });
         } catch (error) {
           console.error(error instanceof Error ? error.message : String(error));

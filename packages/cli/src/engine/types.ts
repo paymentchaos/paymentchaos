@@ -12,6 +12,8 @@ export interface RunEngineOptions {
   readonly stableIds?: boolean;
   /** Secret resolution for runs (defaults to `process.env`). */
   readonly env?: Env;
+  /** Per-delivery HTTP timeout override (local simulation setting). */
+  readonly timeoutMillis?: number;
 }
 
 export interface PlanEngineOptions {

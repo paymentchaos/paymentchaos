@@ -33,6 +33,7 @@ export function createCoreEngine(registry: ProviderRegistry): PaymentChaosEngine
           ? {}
           : { allowRemoteTarget: options.allowRemoteTarget }),
         ...(options.env === undefined ? {} : { env: options.env }),
+        ...(options.timeoutMillis === undefined ? {} : { timeoutMillis: options.timeoutMillis }),
       };
 
       const outcome = await runScenario(options.scenario, runOptions);
