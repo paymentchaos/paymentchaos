@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/fixtures", "!**/*.fixture.json", "!pnpm-lock.yaml"]
+    "includes": ["**", "!**/fixtures", "!**/*.fixture.json", "!pnpm-lock.yaml", "!schemas"]
   },
   "formatter": {
     "enabled": true,
@@ -18,7 +18,10 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "suspicious": {
+        "noTemplateCurlyInString": "off"
+      }
     }
   },
   "javascript": {
