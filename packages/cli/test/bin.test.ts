@@ -1,10 +1,15 @@
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ExitCode } from "@paymentchaos/core";
+import { validateWebhookSignature } from "razorpay/dist/utils/razorpay-utils.js";
+import { Webhook } from "standardwebhooks";
 import { beforeAll, describe, expect, it } from "vitest";
+import { stringify } from "yaml";
 import { createProviderRegistry } from "../src/engine/registry.ts";
 
 const pkgRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,12 +24,8 @@ function runBin(args: string[], opts?: { cwd?: string; env?: NodeJS.ProcessEnv }
   });
 }
 
-let stripeAvailable = false;
-
 beforeAll(async () => {
   execSync("pnpm run build", { cwd: pkgRoot, stdio: "pipe" });
-  const registry = await createProviderRegistry();
-  stripeAvailable = registry.listFlows("stripe").length > 0;
 });
 
 describe("paymentchaos bin", () => {
@@ -49,39 +50,7 @@ describe("paymentchaos bin", () => {
     expect(result.stderr).toMatch(/Invalid value/);
   });
 
-  it("exits 2 when the stripe provider package is not installed", () => {
-    if (stripeAvailable) {
-      return;
-    }
-    const dir = mkdtempSync(path.join(tmpdir(), "paymentchaos-bin-no-stripe-"));
-    try {
-      writeFileSync(
-        path.join(dir, "scenario.yaml"),
-        `version: 1
-name: needs-stripe
-provider: stripe
-flow: subscription-renewal
-target:
-  url: http://127.0.0.1:9/webhooks/stripe
-  secret: \${STRIPE_WEBHOOK_SECRET}
-`,
-        "utf8",
-      );
-      const result = runBin(["plan", "scenario.yaml", "--seed", "1"], {
-        cwd: dir,
-        env: { STRIPE_WEBHOOK_SECRET: "whsec_test" },
-      });
-      expect(result.status).toBe(ExitCode.Config);
-      expect(result.stderr).toMatch(/not installed/i);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
   it("exits 2 when the webhook secret env var is missing", () => {
-    if (!stripeAvailable) {
-      return;
-    }
     const dir = mkdtempSync(path.join(tmpdir(), "paymentchaos-bin-secret-"));
     try {
       writeFileSync(
@@ -117,9 +86,6 @@ flow: subscription-renewal
   });
 
   it("exits 3 when the target is unreachable", () => {
-    if (!stripeAvailable) {
-      return;
-    }
     const dir = mkdtempSync(path.join(tmpdir(), "paymentchaos-bin-down-"));
     try {
       writeFileSync(
@@ -151,5 +117,131 @@ flow: subscription-renewal
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// Share the build above: these async CLI tests must not race another file rebuilding dist.
+const secret = `whsec_${Buffer.alloc(32, 7).toString("base64")}`;
+function runProviderBin(args: string[], cwd: string) {
+  return new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, [binJs, ...args], {
+      cwd,
+      env: { ...process.env, PAYMENTCHAOS_TEST_SECRET: secret, NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code, output }));
+  });
+}
+
+describe("built-in provider CLI integration", () => {
+  it.each([
+    ["razorpay-subscription-charged", "razorpay", ["subscription.charged"]],
+    ["razorpay-payment-captured", "razorpay", ["order.paid", "payment.captured"]],
+    ["generic-hmac-duplicate", "generic-hmac", ["custom.updated", "custom.created"]],
+  ] as const)(
+    "runs %s with every delivery verified by the official SDK",
+    async (scenario, provider, types) => {
+      const cwd = await mkdtemp(path.join(tmpdir(), "paymentchaos-provider-"));
+      const seen: { id: string; type: string; body: Buffer }[] = [];
+      const failures: string[] = [];
+      const server = createServer(async (req, res) => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const body = Buffer.concat(chunks);
+        const headers = Object.fromEntries(
+          Object.entries(req.headers).map(([k, v]) => [
+            k,
+            Array.isArray(v) ? v.join(",") : (v ?? ""),
+          ]),
+        );
+        try {
+          let id: string;
+          let type: string;
+          if (provider === "razorpay") {
+            if (
+              !validateWebhookSignature(
+                body.toString("utf8"),
+                headers["x-razorpay-signature"] ?? "",
+                secret,
+              )
+            )
+              throw new Error("SDK rejected Razorpay delivery");
+            id = headers["x-razorpay-event-id"] ?? "";
+            type = JSON.parse(body.toString("utf8")).event;
+          } else {
+            const parsed = new Webhook(secret).verify(body, headers) as { type: string };
+            id = headers["webhook-id"] ?? "";
+            type = parsed.type;
+            if (headers["x-paymentchaos-mode"] !== "test") throw new Error("Missing test marker");
+          }
+          if (!id) throw new Error("Missing event identity");
+          seen.push({ id, type, body });
+          res.writeHead(200).end();
+        } catch (error) {
+          failures.push(String(error));
+          res.writeHead(400).end();
+        }
+      });
+      try {
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const address = server.address();
+        if (!address || typeof address === "string") throw new Error("Missing server port");
+        await writeFile(
+          path.join(cwd, "paymentchaos.config.yaml"),
+          stringify({
+            version: 1,
+            providers: {
+              [provider]: {
+                target: {
+                  url: `http://127.0.0.1:${address.port}/webhooks`,
+                  secret: "${PAYMENTCHAOS_TEST_SECRET}",
+                },
+              },
+            },
+          }),
+        );
+        const result = await runProviderBin(["run", scenario, "--seed", "1337"], cwd);
+        expect(result, result.output).toMatchObject({ code: 0 });
+        expect(failures).toEqual([]);
+        expect([...new Set(seen.map((e) => e.type))]).toEqual(types);
+        expect(seen.length).toBeGreaterThanOrEqual(provider === "generic-hmac" ? 4 : types.length);
+        for (const id of new Set(seen.map((e) => e.id))) {
+          const copies = seen.filter((e) => e.id === id);
+          for (const copy of copies) expect(copy.body).toEqual(copies[0]?.body);
+        }
+        if (scenario !== "razorpay-payment-captured")
+          expect(new Set(seen.map((e) => e.id)).size).toBeLessThan(seen.length);
+        const flows = await runProviderBin(["flows"], cwd);
+        expect(flows.code).toBe(0);
+        expect(flows.output).toContain(
+          provider === "generic-hmac" ? "user-event" : scenario.replace("razorpay-", ""),
+        );
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        );
+        await rm(cwd, { recursive: true, force: true });
+      }
+    },
+  );
+  it("statically registers all three providers and configures generic payloads per scenario", async () => {
+    const registry = await createProviderRegistry();
+    expect(new Set(registry.listFlows().map((f) => f.provider))).toEqual(
+      new Set(["stripe", "razorpay", "generic-hmac"]),
+    );
+    expect(() => registry.getAdapter("generic-hmac", { events: [] })).toThrowError(
+      expect.objectContaining({ code: "CONFIG_INVALID" }),
+    );
+    expect(() => registry.getAdapter("unknown")).toThrowError(
+      expect.objectContaining({ code: "CONFIG_INVALID" }),
+    );
   });
 });

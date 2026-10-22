@@ -22,7 +22,7 @@ function failedRepeatIndex(outcome: RunOutcome): number | undefined {
 export function createCoreEngine(registry: ProviderRegistry): PaymentChaosEngine {
   return {
     async run(options: RunEngineOptions): Promise<RunEngineResult> {
-      const adapter = registry.getAdapter(options.scenario.provider);
+      const adapter = registry.getAdapter(options.scenario.provider, options.scenario.params);
       const runOptions: RunScenarioOptions = {
         adapter,
         cwd: options.cwd,
@@ -52,7 +52,7 @@ export function createCoreEngine(registry: ProviderRegistry): PaymentChaosEngine
     async plan(
       options: PlanEngineOptions,
     ): Promise<Awaited<ReturnType<PaymentChaosEngine["plan"]>>> {
-      const adapter = registry.getAdapter(options.scenario.provider);
+      const adapter = registry.getAdapter(options.scenario.provider, options.scenario.params);
       return compilePlan(options.scenario, adapter, { seed: options.seed }).plan;
     },
 

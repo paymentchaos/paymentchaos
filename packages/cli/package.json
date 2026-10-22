@@ -22,10 +22,16 @@
   },
   "dependencies": {
     "@paymentchaos/core": "workspace:*",
+    "@paymentchaos/provider-generic": "workspace:*",
+    "@paymentchaos/provider-razorpay": "workspace:*",
     "@paymentchaos/provider-stripe": "workspace:*",
     "@paymentchaos/report": "workspace:*",
     "citty": "0.1.6",
     "picocolors": "1.1.1",
     "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "razorpay": "2.9.6",
+    "standardwebhooks": "1.0.0"
   }
 }

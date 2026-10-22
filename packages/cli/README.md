@@ -24,7 +24,8 @@ Or call the built entrypoint directly:
 node packages/cli/dist/bin.js run --help
 ```
 
-Install `@paymentchaos/provider-stripe` in the workspace when running Stripe scenarios (orchestrator adds the dependency to this package when the provider lands).
+Stripe, Razorpay and generic HMAC adapters ship as static CLI dependencies.
+`paymentchaos flows` lists all three providers.
 
 ## Project config
 
@@ -68,4 +69,21 @@ Remote targets require `--allow-remote-target <hostname>` matching the URL host.
 
 ## Engine integration
 
-The CLI uses `@paymentchaos/core` (`compilePlan`, `runScenario`) with adapters loaded from installed `@paymentchaos/provider-*` packages. Tests use `@paymentchaos/core/testing` doubles; production code does not ship a fake provider.
+The CLI uses `@paymentchaos/core` (`compilePlan`, `runScenario`) with statically imported Stripe, Razorpay and generic HMAC adapters. Tests use `@paymentchaos/core/testing` doubles; production code does not ship a fake provider.
+
+## Razorpay and generic HMAC
+
+Configure `razorpay` and `generic-hmac` targets in the same way as Stripe above.
+The new built-ins are `razorpay-subscription-charged` (INR by default),
+`razorpay-payment-captured` (order paid delivered before payment captured), and
+`generic-hmac-duplicate`. All currencies remain configurable in scenario params.
+
+The generic built-in supplies inline test JSON for `custom.created` and
+`custom.updated`, delivers the update first, then duplicates and concurrently
+redelivers the creation. It uses the Standard Webhooks preset, so its secret env
+variable must contain `whsec_` plus base64 encoding of 24–64 secret bytes. Configure
+`params.format` and `params.events` in a project scenario for your own payloads;
+see [the generic adapter documentation](../provider-generic/README.md).
+Inline YAML strings are encoded exactly once, including whitespace and non-ASCII.
+For programmatic CLI engines, the registry builds a separate configured generic
+adapter per scenario, avoiding mutable global configuration.
