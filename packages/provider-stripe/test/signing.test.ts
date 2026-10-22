@@ -112,6 +112,43 @@ describe("Stripe raw-byte signer and SDK oracle", () => {
     expect(() => signed(body, keys, asInstant(Number.NaN))).toThrow(/timestamp/);
   });
 
+  it.each([
+    Number.NaN,
+    Infinity,
+    -Infinity,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    8_640_000_000_000_001,
+  ])(
+    "rejects an invalid signing or reception clock (%s) even with a valid stale signature",
+    (invalid) => {
+      const old = asInstant(at - 301_000);
+      const value = header(body, keys, old);
+      expect(verify(request(value, body, at), keys, env).valid).toBe(false);
+      expect(verify(request(value, body, asInstant(invalid)), keys, env)).toEqual({
+        valid: false,
+        reason: expect.stringContaining("reception timestamp is invalid"),
+      });
+      expect(() => signed(body, keys, asInstant(invalid))).toThrow(
+        expect.objectContaining({ code: "SIGNING_FAILED" }),
+      );
+    },
+  );
+
+  it("accepts supported UTC boundaries and rejects out-of-range header timestamps", () => {
+    for (const timestamp of [asInstant(0), asInstant(8_640_000_000_000_000)]) {
+      const value = header(body, keys, timestamp);
+      expect(verify(request(value, body, timestamp), keys, env).valid).toBe(true);
+      expect(oracle(body, value, env.CURRENT, timestamp)).toBeDefined();
+    }
+    const value = header().replace("t=1750000000", "t=8640000000001");
+    expect(verify(request(value), keys, env)).toEqual({
+      valid: false,
+      reason: expect.stringContaining("malformed"),
+    });
+  });
+
   it("oracle-verifies arbitrary Unicode payloads and rejects appended bytes", () => {
     fc.assert(
       fc.property(fc.string(), (text) => {

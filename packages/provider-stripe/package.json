@@ -12,7 +12,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "src/fixtures/README.md",
+    "src/fixtures/provenance.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
