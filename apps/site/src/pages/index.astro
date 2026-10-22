@@ -1,9 +1,13 @@
 ---
-// biome-ignore lint/correctness/noUnusedImports: Astro renders this value in the template.
-import demoTranscript from "../data/demo.txt?raw";
-// biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
-import BaseLayout from "../layouts/BaseLayout.astro";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this component.
+import DeliveryPreview from "../components/DeliveryPreview.astro";
 // biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import demoTranscript from "../data/demo.txt?raw";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { landingMessages as m } from "../landing-messages.ts";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this component.
+import BaseLayout from "../layouts/BaseLayout.astro";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use these values.
 import { siteMessages, waitlistMessages } from "../messages.ts";
 import "../styles/landing.css";
 
@@ -15,137 +19,112 @@ const loopsDoubleOptIn = import.meta.env.PUBLIC_LOOPS_DOUBLE_OPT_IN?.trim() === 
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
 ---
 
-<BaseLayout
-  title="PaymentChaos — deterministic payment webhook failure testing"
-  description="Break your payment integration before production does with deterministic webhook chaos and application-state assertions."
->
-  <section class="shell section" aria-labelledby="hero-title">
-    <p class="section-label">Private prototype · early access</p>
-    <h1 id="hero-title">Break your payment integration before production does</h1>
-    <p class="lede">
-      PaymentChaos sends provider-accurate webhook deliveries through duplicates, stale
-      ordering, delays, and concurrent retries—then checks whether your application’s
-      business state is still correct.
-    </p>
-    <div class="button-row">
-      <a class="button" href="#waitlist">{siteMessages.ctaWaitlist}</a>
-      <a class="button secondary" href="/docs/">{siteMessages.ctaDocs}</a>
-      {githubUrl && <a class="button secondary" href={githubUrl}>{siteMessages.ctaGithub}</a>}
+<BaseLayout title={m.title} description={m.description}>
+  <section class="shell hero" aria-labelledby="hero-title">
+    <div>
+      <p class="eyebrow">{m.eyebrow}</p>
+      <h1 id="hero-title">{m.heroTitle} <span>{m.heroRest}</span></h1>
+      <p class="lede">{m.heroDescription}</p>
+      <div class="button-row">
+        <a class="button" href="/docs/">{m.ctaDocs} <span aria-hidden="true">↗</span></a>
+        <a class="button secondary" href="#demo">{m.ctaDemo} <span aria-hidden="true">↓</span></a>
+        {githubUrl && <a class="button secondary" href={githubUrl}>{siteMessages.ctaGithub}</a>}
+      </div>
+      <p class="hero-note">{m.sourceNote}</p>
     </div>
+    <DeliveryPreview />
   </section>
+
+  <div class="shell proof-strip">
+    <span>{m.providersLabel}</span>
+    {m.providers.map((provider) => <strong>{provider}</strong>)}
+    <span>{m.portability}</span>
+  </div>
 
   <section class="shell section" aria-labelledby="failures-title">
-    <p class="section-label">The happy path is not enough</p>
-    <h2 id="failures-title">Three deliveries. Three costly assumptions.</h2>
+    <div class="section-heading">
+      <div>
+        <p class="section-label">{m.failuresLabel}</p>
+        <h2 id="failures-title">{m.failuresTitle}</h2>
+      </div>
+      <p class="lede">{m.failuresDescription}</p>
+    </div>
     <div class="grid">
-      <article class="card">
-        <span class="number" aria-hidden="true">01 / duplicate</span>
-        <h3>One renewal grants twice</h3>
-        <p>
-          The provider retries an event after a lost acknowledgement. Both deliveries return
-          200, but an entitlement is inserted twice because processing is not idempotent.
-        </p>
-      </article>
-      <article class="card">
-        <span class="number" aria-hidden="true">02 / stale state</span>
-        <h3>An old cancellation wins</h3>
-        <p>
-          A delayed cancellation arrives after a newer renewal. Code that trusts arrival order
-          revokes a subscription that is currently active.
-        </p>
-      </article>
-      <article class="card">
-        <span class="number" aria-hidden="true">03 / concurrency</span>
-        <h3>Retries race the check</h3>
-        <p>
-          Concurrent deliveries both pass a check-then-insert guard before either writes. A
-          duplicate slips through because the operation is not atomic.
-        </p>
-      </article>
+      {m.failures.map((failure) => (
+        <article class="card">
+          <span class="number">{failure.label}</span>
+          <div class="failure-signal">{failure.signal}</div>
+          <h3>{failure.title}</h3>
+          <p>{failure.description}</p>
+        </article>
+      ))}
     </div>
   </section>
 
-  <section class="shell section" aria-labelledby="demo-title">
-    <p class="section-label">Real run · seed 1337</p>
-    <h2 id="demo-title">The naive app fails. The corrected app passes.</h2>
-    <p class="lede">
-      This committed transcript comes from the real CLI delivering the same Stripe renewal
-      scenario to both example applications. Event IDs, ports, and latencies vary by run.
-    </p>
-    <div class="terminal">
-      <div class="terminal-bar" aria-hidden="true">
-        <span>paymentchaos</span>
-        <span>stripe-subscription-renewal</span>
-      </div>
-      <pre tabindex="0" aria-label={siteMessages.demoLabel}><code>{demoTranscript}</code></pre>
+  <section class="shell section" id="demo" aria-labelledby="demo-title">
+    <p class="section-label">{m.demoLabel}</p>
+    <h2 id="demo-title">{m.demoTitle}</h2>
+    <p class="lede">{m.demoDescription}</p>
+    <div class="outcomes">
+      <article class="outcome fail">
+        <strong>{m.naiveLabel}</strong>
+        <h3>{m.naiveResult}</h3>
+        <p class="quiet">{m.naiveDetail}</p>
+      </article>
+      <article class="outcome">
+        <strong>{m.correctLabel}</strong>
+        <h3>{m.correctResult}</h3>
+        <p class="quiet">{m.correctDetail}</p>
+      </article>
     </div>
+    <details class="transcript">
+      <summary>{m.transcriptToggle}</summary>
+      <p class="hero-note">{m.transcriptNote}</p>
+      <div class="terminal">
+        <div class="terminal-bar" aria-hidden="true">
+          <span>{siteMessages.productName}</span>
+          <span>stripe-subscription-renewal</span>
+        </div>
+        <pre tabindex="0" aria-label={siteMessages.demoLabel}><code>{demoTranscript}</code></pre>
+      </div>
+    </details>
   </section>
 
   <section class="shell section" id="how-it-works" aria-labelledby="works-title">
-    <p class="section-label">How it works</p>
-    <h2 id="works-title">Test the invariant, not just the response.</h2>
-    <div class="grid">
-      <article class="card">
-        <span class="number" aria-hidden="true">01</span>
-        <h3>Choose a scenario</h3>
-        <p>
-          Start from a provider lifecycle such as a Stripe subscription renewal, or describe a
-          versioned scenario in YAML.
-        </p>
-      </article>
-      <article class="card">
-        <span class="number" aria-hidden="true">02</span>
-        <h3>Apply deterministic chaos</h3>
-        <p>
-          Duplicate, reorder, delay, or release deliveries concurrently. The seed reproduces
-          the same delivery plan and plan hash.
-        </p>
-      </article>
-      <article class="card">
-        <span class="number" aria-hidden="true">03</span>
-        <h3>Assert on application state</h3>
-        <p>
-          Run your own verification command after delivery. Exit codes make failures useful in
-          local scripts and CI, while optional JSON checks explain what changed.
-        </p>
-      </article>
+    <p class="section-label">{m.worksLabel}</p>
+    <h2 id="works-title">{m.worksTitle}</h2>
+    <div class="grid steps">
+      {m.steps.map((step, index) => (
+        <article class="card">
+          <span class="number" aria-hidden="true">0{index + 1}</span>
+          <h3>{step.title}</h3>
+          <p>{step.description}</p>
+        </article>
+      ))}
     </div>
   </section>
 
   <section class="shell section split" aria-labelledby="difference-title">
     <div>
-      <p class="section-label">A different job</p>
-      <h2 id="difference-title">Beyond capture and replay</h2>
-      <p class="lede">
-        Capture-and-replay tools are useful for inspecting and resending HTTP traffic.
-        PaymentChaos focuses on a complementary question: can a deterministic sequence of
-        provider-shaped deliveries corrupt business state?
-      </p>
+      <p class="section-label">{m.differenceLabel}</p>
+      <h2 id="difference-title">{m.differenceTitle}</h2>
+      <p class="lede">{m.differenceDescription}</p>
     </div>
     <ul class="comparison">
-      <li>
-        <h3>Provider-aware generation</h3>
-        <p>Correct event shapes, raw bytes, and signatures for controlled test data.</p>
-      </li>
-      <li>
-        <h3>Purposeful failure schedules</h3>
-        <p>Composable operators model duplicate, reordered, delayed, and concurrent delivery.</p>
-      </li>
-      <li>
-        <h3>Business-state verdicts</h3>
-        <p>Your command checks entitlements, subscriptions, ledgers, or any invariant your app owns.</p>
-      </li>
+      {m.differences.map((difference) => (
+        <li><h3>{difference.title}</h3><p class="quiet">{difference.description}</p></li>
+      ))}
     </ul>
   </section>
 
   <section class="shell section" id="waitlist" aria-labelledby="waitlist-title">
     <div class="waitlist-panel">
-      <p class="section-label">Early access</p>
-      <h2 id="waitlist-title">Help validate PaymentChaos</h2>
-      <p class="lede">
-        PaymentChaos is a private prototype and is not published to npm yet. Join the waitlist
-        to hear when guided early access opens.
-      </p>
+      <div>
+      <p class="section-label">{siteMessages.navEarlyAccess}</p>
+      <h2 id="waitlist-title">{m.waitlistTitle}</h2>
+      <p class="lede">{m.waitlistDescription}</p>
+      </div>
+      <div>
       {
         loopsFormId ? (
           <>
@@ -193,6 +172,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
           <p class="notice" role="status">{siteMessages.waitlistUnavailable}</p>
         )
       }
+      </div>
     </div>
   </section>
 

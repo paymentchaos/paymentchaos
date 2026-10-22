@@ -1,0 +1,26 @@
+---
+import { landingMessages } from "../landing-messages.ts";
+
+// biome-ignore lint/correctness/noUnusedVariables: Astro templates use this value.
+const m = landingMessages.preview;
+---
+
+<figure class="delivery-preview">
+  <div class="preview-head">
+    <strong>{m.title}</strong>
+    <span>{m.seed}</span>
+  </div>
+  {m.attempts.map((attempt) => (
+    <div class="preview-row">
+      <code>{m.event}</code>
+      <span>{attempt}</span>
+      <i>{m.accepted}</i>
+    </div>
+  ))}
+  <div class="preview-result">
+    <strong>{m.result}</strong>
+    <code>{m.assertion}</code>
+    <span class="quiet">{m.expected}</span>
+  </div>
+  <figcaption class="preview-caption">{m.caption}</figcaption>
+</figure>
