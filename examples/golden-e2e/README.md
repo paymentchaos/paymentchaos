@@ -1,13 +1,15 @@
 # @paymentchaos/golden-e2e
 
-Golden end-to-end tests for checkpoint 2: real HTTP deliveries via `@paymentchaos/core`
-(`runScenario`) and, when built, the `paymentchaos` CLI subprocess. Example apps are
-started on ephemeral ports with isolated SQLite files.
+Golden end-to-end tests for checkpoint 2: real HTTP deliveries built by the Stripe adapter
+(`createStripeAdapter()` from `@paymentchaos/provider-stripe`), sent through
+`@paymentchaos/core` (`runScenario`) and through the built `paymentchaos` CLI as a
+subprocess. Example apps are started on ephemeral ports with isolated SQLite files.
 
 ## Requirements
 
 - Node >= 22.12 with `node:sqlite` (`--experimental-sqlite` on 22.12; see CI).
-- Workspace packages built: `@paymentchaos/core`, `@paymentchaos/provider-stripe`.
+- Workspace packages built (`pnpm build`): `@paymentchaos/core`,
+  `@paymentchaos/provider-stripe`, `@paymentchaos/report` and `paymentchaos`.
 
 ## Commands
 
@@ -16,9 +18,15 @@ pnpm --filter @paymentchaos/golden-e2e test:e2e
 pnpm --filter @paymentchaos/golden-e2e demo
 ```
 
-`demo` runs `stripe-subscription-renewal` against naive (must fail business checks) and
-correct (must pass). Set `GOLDEN_E2E_DEMO_ENGINE=core` to force the core runner when the
-CLI is still on the contract fake engine.
+`demo` runs `paymentchaos run stripe-subscription-renewal --seed 1337` against naive
+(must exit 1 on business checks) and correct (must exit 0), and prints the CLI's terminal
+report. If `packages/cli/dist/bin.js` is missing it falls back to calling `runScenario`
+directly; set `GOLDEN_E2E_DEMO_ENGINE=core` to choose that path even when the CLI is built.
+
+The CLI runs each example's `verify.ts` assertion command through `/bin/sh` or `cmd.exe`.
+`src/shell-quote.ts` quotes its arguments for that shell: single quotes on POSIX, double
+quotes on Windows, where a path containing `"`, `%` or a line break is refused with an
+error because cmd.exe cannot carry it safely.
 
 ## Scenarios
 
@@ -29,6 +37,8 @@ CLI is still on the contract fake engine.
 | `subscription-ordering.e2e.test.ts` | Hand-built subscription events | Correct app keeps state per subscription id: `canceled` never reverts (same-second ties included), and deleting an old subscription keeps a newer one active |
 | `concurrency-race.e2e.test.ts` | Manual concurrent POST | Naive check-then-insert records >1 audited transition |
 | `raw-body.e2e.test.ts` | Unicode fixture bytes | Correct app verifies raw bytes; naive rejects valid signatures |
+| `cli.e2e.test.ts` | `stripe-subscription-renewal` via the `paymentchaos` CLI | The real CLI exits 1 on naive and 0 on correct |
+| `shell-quote.test.ts` | — | POSIX and cmd.exe quoting of the assertion command, on any OS |
 
 ## Assertion environment
 
@@ -40,12 +50,10 @@ checks use `PAYMENTCHAOS_ID_SUBSCRIPTION`.
 
 - `fixtures/subscription-updated-unicode.fixture.json` — synthesized UTF-8 payload for
   raw-byte signature tests (not a recorded customer payload).
-- Canonical renewal bodies come from the Stripe adapter shim / provider `encode()` (Unicode
-  metadata, deterministic key order).
+- Canonical renewal bodies come from the Stripe adapter's `encode()` (Unicode metadata,
+  deterministic key order).
 
 ## Limits
 
 - Event ordering assertions use per-object `created` timestamps, not a universal Stripe
   cursor (Stripe documents second-resolution ties).
-- The golden shim mirrors provider lifecycle until `createStripeAdapter()` ships in
-  `@paymentchaos/provider-stripe`.

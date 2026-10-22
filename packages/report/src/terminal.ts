@@ -4,6 +4,9 @@ import { formatValue, shortPlanHash } from "./format.ts";
 import { messages } from "./messages.ts";
 import { quoteShellArg } from "./shell-quote.ts";
 
+/** Display cap for assertion names in the terminal, ellipsis included. */
+const MAX_ASSERTION_NAME_LENGTH = 80;
+
 export interface TerminalRenderOptions {
   /** Scenario file path or built-in name used in the reproduce command. */
   readonly scenarioRef: string;
@@ -42,62 +45,54 @@ function formatChaosTags(tags: readonly string[]): string {
   return tags.join(",");
 }
 
+/** Repeat count of the original run: the scenario's `repeat`, even when one index was selected. */
+function effectiveRepeatTotal(report: RunReport, options: TerminalRenderOptions): number {
+  return options.scenarioRepeat ?? report.repeat;
+}
+
 function buildReproduceCommand(
   scenarioRef: string,
   seed: number,
-  scenarioRepeat: number | undefined,
+  repeatTotal: number,
   failedRepeatIndex: number | undefined,
 ): string {
   const parts = ["npx", "paymentchaos", "run", quoteShellArg(scenarioRef), "--seed", String(seed)];
-  const totalRepeat = scenarioRepeat ?? 0;
-  if (totalRepeat > 1) {
-    parts.push("--repeat", String(totalRepeat));
-  }
-  if (failedRepeatIndex !== undefined && failedRepeatIndex > 0) {
-    parts.push("--repeat-index", String(failedRepeatIndex));
+  if (repeatTotal > 1) {
+    parts.push("--repeat", String(repeatTotal));
+    if (failedRepeatIndex !== undefined && failedRepeatIndex > 0) {
+      parts.push("--repeat-index", String(failedRepeatIndex));
+    }
   }
   return parts.join(" ");
 }
 
-function renderAssertion(
-  assertion: AssertionResult,
-  options: TerminalRenderOptions,
-  report: RunReport,
-  useColor: boolean,
-): string[] {
-  const lines: string[] = [];
-  const label = assertion.message?.trim() ? assertion.message : assertion.name;
-  const mark = assertion.pass
-    ? useColor
-      ? pc.green(messages.assertionPass(assertion.name))
-      : messages.assertionPass(assertion.name)
-    : useColor
-      ? pc.red(messages.assertionFail(label))
-      : messages.assertionFail(label);
+/**
+ * Shorten an assertion name for the terminal only. Command assertions are named after the
+ * full shell command, which can run to hundreds of characters; JSON reports keep it whole.
+ * Slices by code point so a non-ASCII name is never split mid-character.
+ */
+export function truncateAssertionName(name: string, maxLength = MAX_ASSERTION_NAME_LENGTH): string {
+  const chars = Array.from(name);
+  if (chars.length <= maxLength) {
+    return name;
+  }
+  return `${chars.slice(0, maxLength - 1).join("")}${messages.ellipsis}`;
+}
 
+function renderAssertion(assertion: AssertionResult, useColor: boolean): string[] {
+  const name = truncateAssertionName(assertion.name);
   if (assertion.pass) {
-    lines.push(mark);
-    return lines;
+    const mark = messages.assertionPass(name);
+    return [useColor ? pc.green(mark) : mark];
   }
 
-  lines.push(mark);
+  const mark = messages.assertionFail(assertion.message?.trim() ? assertion.message : name);
+  const lines = [useColor ? pc.red(mark) : mark];
   if (assertion.expected !== undefined) {
     lines.push(messages.expected(formatValue(assertion.expected)));
   }
   if (assertion.observed !== undefined) {
     lines.push(messages.observed(formatValue(assertion.observed)));
-  }
-  if (report.status === "failed" || report.status === "error") {
-    lines.push(
-      messages.reproduce(
-        buildReproduceCommand(
-          options.scenarioRef,
-          report.seed,
-          options.scenarioRepeat,
-          options.failedRepeatIndex,
-        ),
-      ),
-    );
   }
   return lines;
 }
@@ -132,7 +127,22 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
   out.push("");
   out.push(messages.assertionsHeading);
   for (const assertion of report.assertions) {
-    out.push(...renderAssertion(assertion, options, report, useColor));
+    out.push(...renderAssertion(assertion, useColor));
+  }
+
+  const repeatTotal = effectiveRepeatTotal(report, options);
+  if (report.status === "failed" || report.status === "error") {
+    out.push("");
+    out.push(
+      messages.reproduce(
+        buildReproduceCommand(
+          options.scenarioRef,
+          report.seed,
+          repeatTotal,
+          options.failedRepeatIndex,
+        ),
+      ),
+    );
   }
 
   if (options.notes !== undefined && options.notes.length > 0) {
@@ -154,15 +164,15 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
         : messages.failedBanner,
     messages.seedPlan(report.seed, shortPlanHash(report.planHash)),
   ];
-  const repeatTotal = options.scenarioRepeat ?? report.repeat;
-  if (report.repeatsFailed > 0 && options.failedRepeatIndex !== undefined) {
-    if (options.repeatSelection === true && repeatTotal > 1) {
+  // A single-repetition run has no repeat to point at, so the suffix would only say "1/1".
+  if (repeatTotal > 1 && report.repeatsFailed > 0) {
+    if (options.failedRepeatIndex === undefined) {
+      bannerParts.push(messages.repeatsFailedSummary(report.repeatsFailed, report.repeat));
+    } else if (options.repeatSelection === true) {
       bannerParts.push(messages.repeatSelectedFailed(options.failedRepeatIndex, repeatTotal));
     } else {
       bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, repeatTotal));
     }
-  } else if (report.repeatsFailed > 0) {
-    bannerParts.push(messages.repeatsFailedSummary(report.repeatsFailed, report.repeat));
   }
   out.push(bannerParts.join("  "));
 
