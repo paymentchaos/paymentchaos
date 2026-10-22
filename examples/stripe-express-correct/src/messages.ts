@@ -9,11 +9,11 @@ export const messages = {
   renewalLedgerOk: "Exactly one renewal ledger entry exists.",
   renewalLedgerDuplicate: (observed: number) =>
     `Duplicate invoice.paid delivery created ${observed} renewal ledger entries.`,
-  subscriptionActiveOk: "Subscription remains active after out-of-order events.",
+  subscriptionActiveOk: "The customer still has an active subscription after out-of-order events.",
   subscriptionActiveStaleCancel:
-    "Older cancellation on a prior subscription id revoked the active subscription.",
-  subscriptionIdOk: "Active subscription id matches the renewed subscription.",
-  subscriptionIdStale: "Stale cancellation overwrote the active Stripe subscription id.",
+    "The customer has no active subscription: an out-of-order event revoked access.",
+  subscriptionIdOk: "The renewed subscription is active.",
+  subscriptionIdStale: "The renewed subscription is not active: a stale event overwrote it.",
   transitionWritesOk: "Exactly one audited subscription transition was recorded.",
   transitionWritesRace: (observed: number) =>
     `Concurrent subscription deliveries recorded ${observed} transition writes (expected one).`,

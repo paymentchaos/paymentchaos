@@ -26,6 +26,7 @@ CLI is still on the contract fake engine.
 |---|---|---|
 | `golden.e2e.test.ts` | `stripe-subscription-renewal` | Five `invoice.paid` deliveries (duplicate×2 + concurrent×3) expose naive duplicate grants |
 | `cancellation.e2e.test.ts` | `stripe-cancellation-out-of-order` | Stale `customer.subscription.deleted` on `subscription_2` must not clobber active `subscription` |
+| `subscription-ordering.e2e.test.ts` | Hand-built subscription events | Correct app keeps state per subscription id: `canceled` never reverts (same-second ties included), and deleting an old subscription keeps a newer one active |
 | `concurrency-race.e2e.test.ts` | Manual concurrent POST | Naive check-then-insert records >1 audited transition |
 | `raw-body.e2e.test.ts` | Unicode fixture bytes | Correct app verifies raw bytes; naive rejects valid signatures |
 

@@ -1,15 +1,29 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { grantsAccess } from "./subscriptions.js";
 
-export type SubscriptionStatus = "active" | "canceled" | "past_due" | "trialing";
+/** https://docs.stripe.com/api/subscriptions/object#subscription_object-status */
+export type SubscriptionStatus =
+  | "active"
+  | "canceled"
+  | "incomplete"
+  | "incomplete_expired"
+  | "past_due"
+  | "paused"
+  | "trialing"
+  | "unpaid";
 
 export interface AppState {
-  subscription: {
-    status: SubscriptionStatus;
+  /** One row per Stripe subscription id the customer has had, oldest first. */
+  subscriptions: Array<{
     stripeSubscriptionId: string;
+    status: SubscriptionStatus;
     lastEventCreated: number;
-  } | null;
+    grantsAccess: boolean;
+  }>;
+  /** The customer's entitlement: true when any of their subscriptions grants access. */
+  hasAccess: boolean;
   entitlements: Array<{
     id: number;
     kind: string;
@@ -35,12 +49,14 @@ export function openDatabase(dbPath: string): DatabaseSync {
       id TEXT PRIMARY KEY,
       stripe_customer_id TEXT NOT NULL UNIQUE
     );
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      customer_id TEXT PRIMARY KEY REFERENCES customers(id),
-      stripe_subscription_id TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS stripe_subscriptions (
+      stripe_subscription_id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES customers(id),
       status TEXT NOT NULL,
-      last_event_created INTEGER NOT NULL DEFAULT 0
+      last_event_created INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS stripe_subscriptions_by_customer
+      ON stripe_subscriptions(customer_id);
     CREATE TABLE IF NOT EXISTS entitlements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id TEXT NOT NULL REFERENCES customers(id),
@@ -91,14 +107,22 @@ export function resolveInternalCustomerId(db: DatabaseSync, query: string): stri
 export function readState(db: DatabaseSync, customerQuery: string): AppState {
   const customerId = resolveInternalCustomerId(db, customerQuery);
 
-  const subscription = db
+  const subscriptionRows = db
     .prepare(
       `SELECT stripe_subscription_id, status, last_event_created
-       FROM subscriptions WHERE customer_id = ?`,
+       FROM stripe_subscriptions WHERE customer_id = ? ORDER BY rowid`,
     )
-    .get(customerId) as
-    | { stripe_subscription_id: string; status: string; last_event_created: number }
-    | undefined;
+    .all(customerId) as Array<{
+    stripe_subscription_id: string;
+    status: string;
+    last_event_created: number;
+  }>;
+  const subscriptions = subscriptionRows.map((row) => ({
+    stripeSubscriptionId: row.stripe_subscription_id,
+    status: row.status as SubscriptionStatus,
+    lastEventCreated: row.last_event_created,
+    grantsAccess: grantsAccess(row.status),
+  }));
 
   const entitlementRows = db
     .prepare(
@@ -130,13 +154,8 @@ export function readState(db: DatabaseSync, customerQuery: string): AppState {
     .get(customerId) as { n: number };
 
   return {
-    subscription: subscription
-      ? {
-          status: subscription.status as SubscriptionStatus,
-          stripeSubscriptionId: subscription.stripe_subscription_id,
-          lastEventCreated: subscription.last_event_created,
-        }
-      : null,
+    subscriptions,
+    hasAccess: subscriptions.some((row) => row.grantsAccess),
     entitlements: entitlementRows.map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -160,7 +179,7 @@ export function resetDatabase(db: DatabaseSync): void {
     DELETE FROM ledger;
     DELETE FROM entitlements;
     DELETE FROM processed_events;
-    DELETE FROM subscriptions;
+    DELETE FROM stripe_subscriptions;
     DELETE FROM customers;
   `);
 }
