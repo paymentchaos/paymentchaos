@@ -1,0 +1,93 @@
+---
+title: Application-state assertions
+description: Command verdicts, JSON checks, PaymentChaos environment variables, and settle polling.
+---
+
+An accepted HTTP response does not prove that business state is correct. In M1,
+PaymentChaos runs a command after delivery so any application stack can inspect its
+own database, API, or domain model.
+
+```yaml
+assert:
+  command: pnpm verify-payment-state
+  settle:
+    timeoutMs: 5000
+    intervalMs: 250
+```
+
+Exit `0` passes. Any non-zero exit fails the assertion and the overall run exits `1`.
+Each attempt has a 120-second limit; an attempt that runs longer counts as a failure.
+
+Every run also includes a built-in check, "every validly signed delivery is accepted". It
+fails the run with exit `1` when any delivery does not get a `2xx` response, even if your
+command passes.
+
+## Optional JSON checks
+
+The command may print a JSON document to standard output for richer terminal
+reporting. PaymentChaos parses the whole output or, failing that, the text from the last
+line that starts with `{`, so package-manager banners before the JSON are fine.
+
+```json
+{
+  "checks": [
+    {
+      "name": "one renewal entitlement",
+      "pass": false,
+      "expected": 1,
+      "observed": 2,
+      "message": "A duplicate invoice granted twice."
+    }
+  ]
+}
+```
+
+`checks` is the only top-level field and must be an array. Every check has a non-empty
+`name` and Boolean `pass`; `expected`, `observed`, and `message` are optional, and no
+other fields are allowed. Output that does not match adds a note to the report but does
+not fail the run.
+
+Each check becomes its own row in the report, and a run passes only when every row
+passes. A check with `"pass": false` therefore fails the run with exit `1` even when the
+command exits `0`. Keep the two consistent: exit non-zero whenever you report a failed
+check.
+
+## Environment passed to the command
+
+PaymentChaos constructs an allowlisted environment instead of forwarding every parent
+variable. It adds:
+
+- `PAYMENTCHAOS=1`
+- `PAYMENTCHAOS_RUN_ID`
+- `PAYMENTCHAOS_SEED`
+- `PAYMENTCHAOS_PLAN_HASH`
+- `PAYMENTCHAOS_REPEAT_INDEX` (one-based)
+- `PAYMENTCHAOS_IDS_JSON`, an object of generated IDs
+- `PAYMENTCHAOS_ID_<NAME>` for each named ID. For `stripe-subscription-renewal` these
+  are `CUSTOMER`, `SUBSCRIPTION`, `INVOICE`, `SI`, `PRICE`, `PROD`, `IL`, `EVENT` and
+  `EVENT_2`; a second ID with the same prefix gets a `_2` suffix.
+
+From the parent process, only these variables are forwarded:
+
+- on every platform: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, `TEMP`,
+  `TMP`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TERM`, `CI`;
+- on Windows, also: `PATHEXT`, `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`,
+  `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`,
+  `PROGRAMFILES`, `PROGRAMFILES(X86)`.
+
+Nothing else is forwarded: not signing secrets, and not variables such as
+`DATABASE_URL`. If your check needs one, set it inside the command itself, for example
+through a script that loads your test configuration. Hooks receive the same environment.
+
+## Settling asynchronous work
+
+With `settle`, PaymentChaos re-runs the assertion command every `intervalMs` until it
+exits `0` or `timeoutMs` expires, and reports the checks from the last attempt. Retrying
+stops on the exit code alone, so a command that exits `0` while printing a failed check
+is not retried. This supports apps
+that acknowledge webhooks quickly and process them asynchronously without hiding a
+persistent invariant failure.
+
+Commands run through the platform shell: `/bin/sh -c` on macOS and Linux, and
+`cmd.exe /d /s /c` on Windows. Quote paths for that shell: single quotes work in `sh`,
+while `cmd.exe` needs double quotes.

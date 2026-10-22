@@ -1,7 +1,7 @@
 # @paymentchaos/site
 
-Static Astro site for `paymentchaos.com`: a landing page and an early-access waitlist backed
-by Loops. It loads no
+Static Astro site for `paymentchaos.com`: a landing page, a privacy notice, an early-access
+waitlist backed by Loops, and Starlight documentation mounted at `/docs`. It loads no
 analytics, fonts or scripts from third parties. The only cross-origin request is the
 waitlist `POST` to Loops.
 
@@ -19,6 +19,13 @@ pnpm --filter @paymentchaos/site test     # waitlist state machine (also part of
 Astro applies its Content-Security-Policy only to built pages, not in `dev`
 ([Astro docs](https://docs.astro.build/en/reference/configuration-reference/#securitycsp)).
 Check CSP with `pnpm --filter @paymentchaos/site exec astro preview` after a build.
+
+Astro hashes the scripts and styles it bundles, but not Starlight's inline theme and sidebar
+scripts or its `style="…"` attributes. Those hashes are listed in `astro.config.mjs`. After
+`astro build`, `scripts/check-csp.ts` recomputes every inline hash in `dist/` and fails the
+build if a page needs one that is missing, printing the hash to add. It also fails if a page
+loads a third-party subresource. Expect it to fire after a Starlight upgrade or new Markdown
+features, such as a right-aligned table column.
 
 ### Build-time environment variables
 
