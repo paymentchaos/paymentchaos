@@ -98,3 +98,67 @@ Do this before setting `PUBLIC_LOOPS_FORM_ID` in Amplify.
    CORS policy for the form endpoint. After the first deploy, try a valid address, an
    invalid one and a repeat signup on the preview URL and on `paymentchaos.com`. Confirm the new
    contact shows as Pending and becomes subscribed after you click the confirmation link.
+
+## Owner setup: AWS Amplify Hosting
+
+The repository root holds `amplify.yml` (build) and `customHttp.yml` (security headers). Both
+use Amplify's monorepo format with `appRoot: apps/site`.
+
+1. **Move or create the repository under the `paymentchaos` GitHub organization** before you
+   connect it. An Amplify app is bound to one repository, so connecting after the move avoids
+   reconnecting later.
+2. **Create the app.** In the [Amplify console](https://console.aws.amazon.com/amplify/), choose
+   **Create new app → GitHub → Next**. When GitHub asks where to install the **AWS Amplify**
+   GitHub App, choose the `paymentchaos` organization. Pick **Only select repositories →
+   paymentchaos**, then **Install & Authorize**. An organization owner should do this step.
+   When another member tries, GitHub sends the owner an installation request instead of
+   installing the app
+   ([GitHub docs](https://docs.github.com/en/apps/using-github-apps/installing-a-github-app-from-a-third-party)).
+3. **Choose the repository and branch.** Select `paymentchaos` and the `main` branch. Tick
+   **My app is a monorepo** and enter `apps/site` as the root directory. Amplify then sets
+   `AMPLIFY_MONOREPO_APP_ROOT=apps/site`, which must match `appRoot` in `amplify.yml`
+   ([monorepo docs](https://docs.aws.amazon.com/amplify/latest/userguide/monorepo-configuration.html)).
+4. **Build settings.** Amplify detects the repository's `amplify.yml`. Leave it as is. It
+   installs Node 24.22.0 through `nvm`, enables Corepack for the `packageManager` pnpm, runs
+   `pnpm install --frozen-lockfile`, and builds with `ASTRO_TELEMETRY_DISABLED=1`. Under
+   **Advanced settings**, add the environment variables from the table above. Choose **Next →
+   Save and deploy**.
+5. **Environment variables later.** Open **Hosting → Environment variables → Manage
+   variables**. To give previews a separate Loops form, use **Actions → Add variable override**
+   for a branch. Redeploy after every change, because the values are compiled into the build
+   ([environment variables](https://docs.aws.amazon.com/amplify/latest/userguide/setting-env-vars.html)).
+6. **PR previews.** Open **Hosting → Previews**. Install the GitHub App if prompted, select
+   `main`, choose **Edit settings**, turn on **Pull request previews** and **Confirm**. Amplify
+   deletes a preview when its PR closes. Once the repository is public, previews stay available
+   only while the app has no IAM service role. This static app needs none, so do not attach
+   one ([PR previews](https://docs.aws.amazon.com/amplify/latest/userguide/pr-previews.html)).
+7. **Custom domain.** Open **Hosting → Custom domains → Add domain** and enter
+   `paymentchaos.com`.
+   - If the domain's DNS is in Route 53, Amplify can create the records for you.
+   - With another DNS provider, choose **Manual configuration** and keep the Amplify-managed
+     certificate. Choose **Add domain**, then **Actions → View DNS records**. Add the certificate
+     validation CNAME immediately, because a late record can leave the domain stuck in pending
+     verification. Then add the `www` CNAME to the shown `*.cloudfront.net` target, and an
+     ANAME/ALIAS for the apex if your provider supports it.
+   - Amplify redirects the apex to `www` by default. The canonical URLs in the built pages use
+     `https://paymentchaos.com`, so decide which host is primary before launch.
+   - Verification can take up to 48 hours
+     ([third-party DNS](https://docs.aws.amazon.com/amplify/latest/userguide/to-add-a-custom-domain-managed-by-a-third-party-dns-provider.html)).
+8. **Headers.** `customHttp.yml` overrides headers set in the console. Redeploy after changing
+   it ([custom headers](https://docs.aws.amazon.com/amplify/latest/userguide/custom-headers.html)).
+   Then check that the live response carries `Content-Security-Policy`,
+   `Strict-Transport-Security`, `Referrer-Policy`, `X-Content-Type-Options`,
+   `Permissions-Policy` and `X-Frame-Options`:
+
+   ```sh
+   curl -sI https://paymentchaos.com/ | grep -iE 'content-security|strict-transport|referrer|x-content|permissions|x-frame'
+   ```
+
+9. **Custom 404 page.** Open **Hosting → Rewrites and redirects → Manage redirects** and add
+   a rule with source `/<*>`, target `/404.html` and the **not found (404)** type (`"status":
+   "404"` in the JSON editor). Amplify documents this rule for paths that cannot be found, so
+   real pages are unaffected
+   ([redirect examples](https://docs.aws.amazon.com/amplify/latest/userguide/redirect-rewrite-examples.html)).
+10. **Before announcing.** On a PR preview and on the custom domain, check keyboard-only use,
+   reduced motion, a 390 px wide viewport, the waitlist failure messages, and the browser console
+   for CSP violations.
