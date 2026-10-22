@@ -39,6 +39,7 @@ export const BUILTIN_SCENARIOS: readonly Scenario[] = [
     name: "razorpay-subscription-charged",
     provider: "razorpay",
     flow: "subscription-charged",
+    params: { currency: "INR" },
     chaos: [
       { duplicate: { event: "subscription.charged", times: 2 } },
       { concurrent: { event: "subscription.charged", deliveries: 3 } },
@@ -50,7 +51,7 @@ export const BUILTIN_SCENARIOS: readonly Scenario[] = [
     name: "razorpay-payment-captured",
     provider: "razorpay",
     flow: "payment-captured",
-    chaos: [{ reorder: ["payment.captured", "order.paid"] }],
+    chaos: [{ reorder: ["order.paid", "payment.captured"] }],
     repeat: 1,
   },
   {
@@ -58,10 +59,20 @@ export const BUILTIN_SCENARIOS: readonly Scenario[] = [
     name: "generic-hmac-duplicate",
     provider: "generic-hmac",
     flow: "user-event",
+    params: {
+      format: "standard-webhooks",
+      events: [
+        {
+          type: "custom.created",
+          body: '{ "type": "custom.created", "test": true, "name": "Zoë 東京" }\n',
+        },
+        { type: "custom.updated", body: '{"type":"custom.updated","test":true,"revision":2}' },
+      ],
+    },
     chaos: [
-      { duplicate: { event: "custom.event", times: 2 } },
-      { reorder: ["custom.event", "custom.event"] },
-      { concurrent: { event: "custom.event", deliveries: 2 } },
+      { duplicate: { event: "custom.created", times: 2 } },
+      { reorder: ["custom.updated", "custom.created"] },
+      { concurrent: { event: "custom.created", deliveries: 2 } },
     ],
     repeat: 1,
   },
