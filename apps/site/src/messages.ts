@@ -1,4 +1,5 @@
 export const siteMessages = {
+  productName: "PaymentChaos",
   skipLink: "Skip to main content",
   homeLabel: "PaymentChaos home",
   primaryNav: "Primary navigation",

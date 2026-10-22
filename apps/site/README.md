@@ -162,3 +162,16 @@ use Amplify's monorepo format with `appRoot: apps/site`.
 10. **Before announcing.** On a PR preview and on the custom domain, check keyboard-only use,
    reduced motion, a 390 px wide viewport, the waitlist failure messages, and the browser console
    for CSP violations.
+
+## Visual design references
+
+The October 2026 refresh was informed by direct browser inspection of
+[Linear](https://linear.app/) (restrained navigation, strong type, early product evidence),
+[Vercel](https://vercel.com/) (clear actions and neutral surfaces), and
+[Stripe Docs](https://docs.stripe.com/) (task-oriented entry points and scannable guides),
+and [Supabase Docs](https://supabase.com/docs) (compact navigation and readable callouts).
+These are design references, not endorsements or product integrations. The site keeps its
+own branding and uses local assets, with no hosted fonts or third-party UI scripts.
+
+Preview the full stack with `pnpm --filter @paymentchaos/site dev` from the repository root.
+Use the port printed by Astro if another site preview already occupies port 4321.

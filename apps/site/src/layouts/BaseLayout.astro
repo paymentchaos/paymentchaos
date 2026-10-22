@@ -20,7 +20,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#07130f" />
+    <meta name="theme-color" content="#0b0f14" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href={canonical} />
     <title>{title}</title>
@@ -29,8 +29,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <a class="skip-link" href="#main">{m.skipLink}</a>
     <header class="site-header">
       <a class="wordmark" href="/" aria-label={m.homeLabel}>
-        <span aria-hidden="true">PC</span>
-        PaymentChaos
+        <img src="/brand.svg" alt="" width="29" height="29" />
+        {m.productName}
       </a>
       <nav aria-label={m.primaryNav}>
         <a class="nav-wide" href="/#how-it-works">{m.navHowItWorks}</a>
