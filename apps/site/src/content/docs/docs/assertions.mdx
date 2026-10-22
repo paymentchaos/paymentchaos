@@ -45,7 +45,12 @@ line that starts with `{`, so package-manager banners before the JSON are fine.
 `checks` is the only top-level field and must be an array. Every check has a non-empty
 `name` and Boolean `pass`; `expected`, `observed`, and `message` are optional, and no
 other fields are allowed. Output that does not match adds a note to the report but does
-not fail the run. The process exit code remains the source of truth for the verdict.
+not fail the run.
+
+Each check becomes its own row in the report, and a run passes only when every row
+passes. A check with `"pass": false` therefore fails the run with exit `1` even when the
+command exits `0`. Keep the two consistent: exit non-zero whenever you report a failed
+check.
 
 ## Environment passed to the command
 
@@ -77,7 +82,9 @@ through a script that loads your test configuration. Hooks receive the same envi
 ## Settling asynchronous work
 
 With `settle`, PaymentChaos re-runs the assertion command every `intervalMs` until it
-passes or `timeoutMs` expires. The final failed attempt is reported. This supports apps
+exits `0` or `timeoutMs` expires, and reports the checks from the last attempt. Retrying
+stops on the exit code alone, so a command that exits `0` while printing a failed check
+is not retried. This supports apps
 that acknowledge webhooks quickly and process them asynchronously without hiding a
 persistent invariant failure.
 

@@ -36,7 +36,7 @@ assert:
   Each has a 120-second limit, and a failing hook stops the run with exit `2`.
 - `assert.command` is the application-state check. See
   [Application-state assertions](/docs/assertions/).
-- `assert.settle` re-runs that command until it passes or the timeout expires. Set both
+- `assert.settle` re-runs that command until it exits `0` or the timeout expires. Set both
   `timeoutMs` (0 or more) and `intervalMs` (1 or more).
 
 Hooks and assertion commands run in the directory the CLI was started from, with the

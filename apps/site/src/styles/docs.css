@@ -25,6 +25,14 @@
   --sl-color-accent-high: #063d22;
 }
 
+/* Expressive Code is off. Wrap long code lines so pages reflow at 320 px (WCAG 1.4.10) without a
+   horizontal scroller, which a keyboard user could not reach on an unfocusable <pre>. */
+.sl-markdown-content pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 :focus-visible {
   outline: 0.2rem solid var(--sl-color-accent);
   outline-offset: 0.2rem;
