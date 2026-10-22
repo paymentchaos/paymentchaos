@@ -20,7 +20,8 @@ export const messages = {
   assertionFail: (name: string) => `✗ ${name}`,
   expected: (value: string) => `    expected: ${value}`,
   observed: (value: string) => `    observed: ${value}`,
-  reproduce: (cmd: string) => `    reproduce: ${cmd}`,
+  reproduce: (cmd: string) => `reproduce: ${cmd}`,
+  ellipsis: "…",
   repeatFailed: (index: number, total: number) => `repeat ${index}/${total} failed`,
   repeatSelectedFailed: (index: number, total: number) =>
     `selected repeat ${index} of ${total} failed (1 executed)`,

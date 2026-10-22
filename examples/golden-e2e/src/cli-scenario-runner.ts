@@ -9,12 +9,22 @@ import type {
   StripeSubscriptionRenewalRequest,
   StripeSubscriptionRenewalResult,
 } from "./scenario-runner.js";
+import { shellCommand } from "./shell-quote.js";
 
 const goldenRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(goldenRoot, "..", "..");
 
 function cliEntrypoint(): string {
   return join(repoRoot, "packages", "cli", "dist", "bin.js");
+}
+
+/**
+ * `--import` needs a URL, not a Windows path. A literal space is valid in a file URL (Node
+ * re-encodes it), and keeping `%20` would trip cmd.exe's `%` expansion for repositories
+ * under paths like `C:\Users\Jane Doe`.
+ */
+function tsxLoaderSpecifier(): string {
+  return import.meta.resolve("tsx").replaceAll("%20", " ");
 }
 
 function writeTempProject(options: {
@@ -51,17 +61,20 @@ export function createCliScenarioRunner(options: {
       base.search = "";
       base.hash = "";
       const baseUrl = base.toString().replace(/\/$/, "");
-      // The CLI runs this through /bin/sh or cmd.exe from a temp directory: quote paths
-      // (node often lives under "Program Files" on Windows) and resolve tsx from here.
-      const quote = (arg: string) => `"${arg}"`;
-      const verifyCommand = [
-        quote(process.execPath),
-        "--import",
-        quote(import.meta.resolve("tsx")),
-        quote(join(options.exampleDir, verifyScript)),
-        "--base-url",
-        quote(baseUrl),
-      ].join(" ");
+      // The CLI runs this through /bin/sh or cmd.exe from a temp directory, so quote every
+      // argument for that shell (node often lives under "Program Files" on Windows) and
+      // resolve tsx from here.
+      const verifyCommand = shellCommand(
+        [
+          process.execPath,
+          "--import",
+          tsxLoaderSpecifier(),
+          join(options.exampleDir, verifyScript),
+          "--base-url",
+          baseUrl,
+        ],
+        process.platform,
+      );
 
       const { projectDir } = writeTempProject({
         exampleDir: options.exampleDir,

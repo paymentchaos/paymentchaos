@@ -1,7 +1,6 @@
 import { generateSeed } from "@paymentchaos/core";
 import type { CommandDef } from "citty";
 import { createEngine } from "../engine/create-engine.ts";
-import { exitCodeFor } from "../exit.ts";
 import { parseOptionalSeed } from "../flags.ts";
 import { messages } from "../messages.ts";
 import { mergeScenarioWithProject } from "../scenario/merge.ts";
@@ -28,36 +27,24 @@ export function createPlanCommand(): CommandDef {
       const project = await loadProjectConfig(cwd);
       const engine = await createEngine();
 
-      try {
-        let seedArg: number | undefined;
-        try {
-          seedArg = parseOptionalSeed(ctx.args.seed);
-        } catch (error) {
-          console.error(error instanceof Error ? error.message : String(error));
-          process.exit(exitCodeFor(error));
-        }
+      const seedArg = parseOptionalSeed(ctx.args.seed);
+      const resolved = await resolveScenarioRef(cwd, file);
+      const loaded = await loadResolvedScenario(resolved);
+      const scenario = mergeScenarioWithProject(loaded.scenario, project?.config);
+      const seed = seedArg ?? scenario.seed ?? generateSeed();
 
-        const resolved = await resolveScenarioRef(cwd, file);
-        const loaded = await loadResolvedScenario(resolved);
-        const scenario = mergeScenarioWithProject(loaded.scenario, project?.config);
-        const seed = seedArg ?? scenario.seed ?? generateSeed();
-
-        console.log(messages.runSeedLine(seed));
-        const plan = await engine.plan({ scenario, seed });
-        console.log(messages.planHeading(plan.planHash));
-        for (const delivery of plan.deliveries) {
-          console.log(
-            messages.planDelivery(
-              delivery.seq,
-              delivery.event.type,
-              delivery.event.id,
-              delivery.attempt,
-            ),
-          );
-        }
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : String(error));
-        process.exit(exitCodeFor(error));
+      console.log(messages.runSeedLine(seed));
+      const plan = await engine.plan({ scenario, seed });
+      console.log(messages.planHeading(plan.planHash));
+      for (const delivery of plan.deliveries) {
+        console.log(
+          messages.planDelivery(
+            delivery.seq,
+            delivery.event.type,
+            delivery.event.id,
+            delivery.attempt,
+          ),
+        );
       }
     },
   };

@@ -26,7 +26,11 @@ describe("golden end-to-end via the paymentchaos CLI", () => {
         "Duplicate invoice.paid delivery created 5 renewal ledger entries.",
       );
       expect(result.stdout).toContain("PAYMENTCHAOS FAILED");
-      expect(result.stdout).toContain(`--seed ${seed}`);
+      expect(result.stdout).toContain(
+        `reproduce: npx paymentchaos run stripe-subscription-renewal --seed ${seed}\n`,
+      );
+      expect(result.stdout.match(/reproduce:/g)).toHaveLength(1);
+      expect(result.stdout).not.toContain("repeat 1/1");
     } finally {
       await app.close();
     }
