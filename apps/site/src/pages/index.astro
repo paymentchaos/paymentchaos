@@ -7,6 +7,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { siteMessages } from "../messages.ts";
 
 // biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
+const loopsFormId = import.meta.env.PUBLIC_LOOPS_FORM_ID?.trim();
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
+const loopsDoubleOptIn = import.meta.env.PUBLIC_LOOPS_DOUBLE_OPT_IN?.trim() === "true";
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
 ---
 
@@ -141,7 +145,70 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
         PaymentChaos is a private prototype and is not published to npm yet. Join the waitlist
         to hear when guided early access opens.
       </p>
-      <p class="notice" role="status">{siteMessages.waitlistUnavailable}</p>
+      {
+        loopsFormId ? (
+          <>
+          <form
+            data-waitlist-form
+            data-form-id={loopsFormId}
+            data-double-opt-in={String(loopsDoubleOptIn)}
+            novalidate
+            hidden
+          >
+            <div class="field">
+              <label for="waitlist-email">Work or personal email</label>
+              <div class="field-row">
+                <input
+                  id="waitlist-email"
+                  name="email"
+                  type="email"
+                  inputmode="email"
+                  autocomplete="email"
+                  maxlength="254"
+                  required
+                  aria-describedby="waitlist-consent waitlist-status"
+                />
+                <button type="submit">Join the waitlist</button>
+              </div>
+            </div>
+            <p class="consent" id="waitlist-consent">
+              By joining, you consent to receive PaymentChaos early-access updates by email.
+              Loops stores your email for this purpose. You can unsubscribe at any time. See our{" "}
+              <a href="/privacy/">privacy notice</a>.
+            </p>
+            <p
+              class="form-status"
+              id="waitlist-status"
+              data-waitlist-status
+              data-state="idle"
+              role="status"
+              aria-live="polite"
+              tabindex="-1"
+            />
+          </form>
+          <noscript>
+            <p class="notice">
+              Joining the waitlist needs JavaScript, which is turned off in this browser. Turn it
+              on and reload this page to join.
+            </p>
+          </noscript>
+          </>
+        ) : (
+          <p class="notice" role="status">{siteMessages.waitlistUnavailable}</p>
+        )
+      }
     </div>
   </section>
+
+  {
+    loopsFormId && (
+      <script>
+        import { mountWaitlistForm } from "../lib/waitlist.ts";
+
+        const form = document.querySelector<HTMLFormElement>("[data-waitlist-form]");
+        const formId = form?.dataset.formId;
+        if (form && formId) mountWaitlistForm(form, formId, form.dataset.doubleOptIn === "true");
+      </script>
+    )
+  }
 </BaseLayout>
