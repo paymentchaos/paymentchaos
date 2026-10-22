@@ -1,0 +1,12 @@
+{
+  "provenance": "synthesized",
+  "source": "../generate.ts",
+  "sdk": "razorpay@2.9.6",
+  "documentation": [
+    "https://razorpay.com/docs/webhooks/payloads/payments/",
+    "https://razorpay.com/docs/webhooks/payloads/orders/",
+    "https://razorpay.com/docs/webhooks/payloads/subscriptions/",
+    "https://razorpay.com/docs/webhooks/validate-test/"
+  ],
+  "containsCustomerData": false
+}

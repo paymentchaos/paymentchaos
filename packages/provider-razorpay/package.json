@@ -1,0 +1,30 @@
+{
+  "name": "@paymentchaos/provider-razorpay",
+  "version": "0.0.0",
+  "description": "Deterministic Razorpay sandbox webhook payloads and signatures.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "src/fixtures/README.md",
+    "src/fixtures/provenance.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@paymentchaos/core": "workspace:*"
+  },
+  "devDependencies": {
+    "razorpay": "2.9.6",
+    "fast-check": "4.10.2"
+  }
+}
