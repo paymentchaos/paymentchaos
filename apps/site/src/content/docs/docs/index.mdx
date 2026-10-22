@@ -1,18 +1,69 @@
 ---
-title: PaymentChaos
+title: PaymentChaos documentation
 description: Deterministic failure testing for payment and subscription integrations.
-template: splash
-hero:
-  tagline: Send provider-accurate webhook deliveries through deterministic chaos, then assert on your application's business state.
-  actions:
-    - text: Early-access quickstart
-      link: /docs/quickstart/
-      icon: right-arrow
-      variant: primary
-    - text: Back to paymentchaos.com
-      link: /
-      icon: external
 ---
+
+import { Aside } from "@astrojs/starlight/components";
+import Lead from "../../../components/docs/Lead.astro";
+import PathCard from "../../../components/docs/PathCard.astro";
+import PathGrid from "../../../components/docs/PathGrid.astro";
+import QuickstartCallout from "../../../components/docs/QuickstartCallout.astro";
+
+<Lead>
+  Send provider-accurate webhook deliveries through deterministic chaos, then assert on
+  your application's business state.
+</Lead>
+
+<Aside type="caution" title="Private M1 prototype">
+  PaymentChaos is **not published to npm**, the repository is not public, and there is no
+  supported public install command yet. Early-access users run the built CLI from a
+  source checkout.
+</Aside>
+
+<QuickstartCallout title="Run the Stripe renewal demo" href="/docs/quickstart/">
+
+From an early-access source checkout with Node 24.22.0 and Corepack, build once and run
+the golden demo. For seed `1337`, the naive example app must fail and the corrected one
+must pass.
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --filter @paymentchaos/golden-e2e demo
+```
+
+</QuickstartCallout>
+
+## Reading paths
+
+### Set up a run
+
+<PathGrid>
+  <PathCard kind="guide" title="Early-access quickstart" href="/docs/quickstart/">
+    Run the real CLI against the naive and correct Stripe example apps.
+  </PathCard>
+  <PathCard kind="reference" title="Project configuration" href="/docs/configuration/">
+    Local targets, secret references, hooks and command assertions.
+  </PathCard>
+</PathGrid>
+
+### Understand the model
+
+<PathGrid>
+  <PathCard kind="concept" title="Scenarios and chaos" href="/docs/scenarios/">
+    The scenario format, built-in scenarios and the four M1 chaos operators.
+  </PathCard>
+  <PathCard kind="concept" title="Application-state assertions" href="/docs/assertions/">
+    Command verdicts, JSON checks, environment variables and settle polling.
+  </PathCard>
+  <PathCard kind="concept" title="Determinism and reproduction" href="/docs/determinism/">
+    Seeds, plan hashes, run nonces, repeats and the reproduce command.
+  </PathCard>
+  <PathCard kind="reference" title="Exit codes and safety" href="/docs/safety/">
+    Stable exit codes and the guard for non-local webhook targets.
+  </PathCard>
+</PathGrid>
 
 ## What it is
 

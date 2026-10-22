@@ -1,0 +1,28 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { docsMessages } from "../../docs-messages";
+
+interface Props {
+  title: string;
+  href: string;
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use these props.
+const { title, href } = Astro.props;
+---
+
+<section class="pc-callout" aria-labelledby="pc-callout-title">
+  <div class="not-content">
+    <p class="pc-callout__eyebrow">{docsMessages.quickstartEyebrow}</p>
+    <h2 class="pc-callout__title" id="pc-callout-title">{title}</h2>
+  </div>
+  <div class="pc-callout__body"><slot /></div>
+  <div class="not-content">
+    <a class="pc-callout__action" href={href}>
+      {docsMessages.quickstartAction}
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16">
+        <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+      </svg>
+    </a>
+  </div>
+</section>

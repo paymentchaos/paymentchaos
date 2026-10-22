@@ -61,8 +61,9 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "PaymentChaos",
+      logo: { src: "./src/assets/brand.svg", replacesTitle: false },
       description: "Documentation for deterministic payment webhook failure testing.",
-      customCss: ["./src/styles/docs.css"],
+      customCss: ["./src/styles/docs.css", "./src/styles/docs-overview.css"],
       expressiveCode: false,
       pagefind: false,
       social: githubUrl ? [{ icon: "github", label: "GitHub", href: githubUrl }] : [],
