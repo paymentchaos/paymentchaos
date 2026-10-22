@@ -1,0 +1,120 @@
+---
+title: Scenarios and M1 chaos
+description: The version 1 scenario format, the built-in scenarios, and the duplicate, reorder, delay, and concurrent operators.
+---
+
+A scenario describes a provider lifecycle and an ordered list of transformations to
+its delivery plan. Put project scenarios in `paymentchaos/scenarios/<name>.yaml`, or
+pass a file path to `run`.
+
+```yaml
+version: 1
+name: renewal survives delivery chaos
+provider: stripe
+flow: subscription-renewal
+params:
+  currency: jpy
+  country: JP
+chaos:
+  - duplicate:
+      event: invoice.paid
+      times: 2
+  - reorder:
+      - invoice.paid
+      - customer.subscription.updated
+  - delay:
+      event: customer.subscription.updated
+      byMs: 100
+  - concurrent:
+      event: invoice.paid
+      deliveries: 3
+repeat: 10
+seed: 1337
+```
+
+Every file declares `version: 1`. `provider` selects an adapter (`stripe`, `razorpay` or
+`generic-hmac`), `flow` selects one of its lifecycle packs, and `params` carries flow
+inputs such as an ISO 4217 currency and a two-letter country code. List the available
+flows and their event types with:
+
+```sh
+node packages/cli/dist/bin.js flows
+```
+
+Optional fields:
+
+- `repeat` and `seed` default the run's repetition count and seed. The `--repeat` and
+  `--seed` flags override them. Without either, the seed is random and printed in the
+  report.
+- `apiVersion` selects one of the adapter's supported provider API versions. It defaults
+  to the adapter's first supported version, and an unsupported value is rejected with the
+  supported list.
+- `target`, `hooks` and `assert` replace the project configuration's values for this
+  scenario (see [Project configuration](/docs/configuration/)).
+
+## M1 operators
+
+Chaos operators run in the order written. Every `event` must be an event type of the
+selected flow; otherwise the CLI exits `2` and lists the valid ones.
+
+### `duplicate`
+
+Adds redeliveries of the same logical event: same event ID and body bytes, with a
+signature created for each delivery. `times` is the number of extra copies and
+defaults to `1`.
+
+### `reorder`
+
+Places the listed event types (at least two) in that delivery order. It preserves the
+set of deliveries; it does not create or remove logical events.
+
+### `delay`
+
+Delays deliveries of the selected event by `byMs` milliseconds (an integer, 0 or more).
+The CLI waits that long in real time.
+
+### `concurrent`
+
+Releases `deliveries` copies (2 or more, counting the original) of the first delivery
+of each matching event together, in one concurrency group. Dispatch is deterministic,
+but the target application's interleaving is not. Use `repeat` to increase the chance
+of exposing a race; a passing run does not prove that no race exists.
+
+## Built-in scenarios
+
+Each built-in reads `providers.<provider>.target.url` and `secret` from your project
+configuration.
+
+| Name | Provider | Chaos |
+| --- | --- | --- |
+| `stripe-subscription-renewal` | `stripe` | duplicate, reorder and concurrent `invoice.paid` |
+| `stripe-cancellation-out-of-order` | `stripe` | an older cancellation delivered after a newer renewal |
+| `stripe-one-time-payment` | `stripe` | duplicate `payment_intent.succeeded` |
+| `razorpay-subscription-charged` | `razorpay` | duplicate and concurrent `subscription.charged` in INR |
+| `razorpay-payment-captured` | `razorpay` | `order.paid` before `payment.captured` |
+| `generic-hmac-duplicate` | `generic-hmac` | duplicate, reorder and concurrent developer-supplied events |
+
+`generic-hmac-duplicate` signs in the Standard Webhooks format, so its secret must be
+`whsec_` followed by base64 of 24 to 64 bytes.
+
+## Resolution and planning
+
+`run` accepts one or more scenario references, including glob patterns. Each reference
+is resolved in this order:
+
+1. a file path relative to the current directory;
+2. `paymentchaos/scenarios/<name>.yaml` under the current directory;
+3. a built-in scenario name.
+
+The scenario directory is relative to where you run the CLI, not to the config file, so
+run it from the project root.
+
+```sh
+node packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
+node packages/cli/dist/bin.js run paymentchaos/scenarios/renewal.yaml --repeat 20
+node packages/cli/dist/bin.js plan paymentchaos/scenarios/renewal.yaml --seed 1337
+```
+
+`plan` compiles a scenario without sending a request. It needs the provider's target URL
+but not the secret. It prints the seed, the full plan hash, and one line per delivery
+with its sequence number, event type, event ID and attempt. Its only flag is `--seed`.

@@ -1,0 +1,51 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Privacy — PaymentChaos"
+  description="How PaymentChaos handles email addresses submitted to the early-access waitlist."
+>
+  <article class="shell section prose">
+    <p class="section-label">Privacy notice</p>
+    <h1>A small waitlist with a small data footprint</h1>
+    <p class="lede">
+      This notice covers the PaymentChaos early-access waitlist. The website uses no analytics,
+      advertising trackers, or behavioral profiling.
+    </p>
+
+    <h2>What is stored and why</h2>
+    <p>
+      If you join the waitlist, we store the email address you submit, together with the details
+      the email service records for any subscriber: when and through which form you signed up,
+      and whether you have confirmed or unsubscribed. We use this only to send early-access
+      invitations and updates about PaymentChaos. We do not sell it or share it for advertising.
+    </p>
+
+    <h2>Who stores the email</h2>
+    <p>
+      We use <a href="https://loops.so/">Loops</a> as the email service that receives and stores
+      your address and sends these messages. The form sends your email directly from your browser
+      to Loops, which processes it on our behalf under its
+      <a href="https://loops.so/privacy">privacy policy</a>.
+    </p>
+
+    <h2>Unsubscribing and deletion</h2>
+    <p>
+      Every waitlist email includes an unsubscribe link that opens a Loops preference page, where
+      you can stop future messages at any time. To have your record deleted entirely, reply to any
+      waitlist email and ask us to delete it. We will remove your contact from Loops and confirm
+      by email.
+    </p>
+
+    <h2>No analytics or trackers</h2>
+    <p>
+      This site does not load analytics, advertising scripts, social pixels, hosted fonts, or
+      other trackers. Open and link tracking are turned off for our waitlist emails, so they keep
+      the same promise.
+    </p>
+
+    <p><a href="/">Return to the PaymentChaos homepage</a></p>
+  </article>
+</BaseLayout>
