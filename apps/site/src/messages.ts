@@ -1,0 +1,17 @@
+export const siteMessages = {
+  skipLink: "Skip to main content",
+  homeLabel: "PaymentChaos home",
+  primaryNav: "Primary navigation",
+  navHowItWorks: "How it works",
+  navDocs: "Docs",
+  navEarlyAccess: "Early access",
+  footerTagline: "PaymentChaos is a private prototype. No analytics. No trackers.",
+  footerNav: "Footer navigation",
+  footerDocs: "Documentation",
+  footerPrivacy: "Privacy",
+  waitlistUnavailable: "The waitlist is temporarily unavailable. Please check back soon.",
+  ctaWaitlist: "Join the waitlist",
+  ctaDocs: "Read the current docs",
+  ctaGithub: "View on GitHub",
+  demoLabel: "PaymentChaos seed 1337 terminal output",
+} as const;

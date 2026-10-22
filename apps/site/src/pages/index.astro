@@ -3,6 +3,8 @@
 import demoTranscript from "../data/demo.txt?raw";
 // biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
 import BaseLayout from "../layouts/BaseLayout.astro";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { siteMessages } from "../messages.ts";
 
 // biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
 const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
@@ -21,9 +23,9 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
       business state is still correct.
     </p>
     <div class="button-row">
-      <a class="button" href="#waitlist">Join the waitlist</a>
-      <a class="button secondary" href="/docs/">Read the current docs</a>
-      {githubUrl && <a class="button secondary" href={githubUrl}>View on GitHub</a>}
+      <a class="button" href="#waitlist">{siteMessages.ctaWaitlist}</a>
+      <a class="button secondary" href="/docs/">{siteMessages.ctaDocs}</a>
+      {githubUrl && <a class="button secondary" href={githubUrl}>{siteMessages.ctaGithub}</a>}
     </div>
   </section>
 
@@ -70,7 +72,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
         <span>paymentchaos</span>
         <span>stripe-subscription-renewal</span>
       </div>
-      <pre tabindex="0" aria-label="PaymentChaos seed 1337 terminal output"><code>{demoTranscript}</code></pre>
+      <pre tabindex="0" aria-label={siteMessages.demoLabel}><code>{demoTranscript}</code></pre>
     </div>
   </section>
 
@@ -139,9 +141,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
         PaymentChaos is a private prototype and is not published to npm yet. Join the waitlist
         to hear when guided early access opens.
       </p>
-      <p class="notice" role="status">
-        The waitlist is temporarily unavailable. Please check back soon.
-      </p>
+      <p class="notice" role="status">{siteMessages.waitlistUnavailable}</p>
     </div>
   </section>
 </BaseLayout>
