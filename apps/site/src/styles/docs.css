@@ -1,0 +1,42 @@
+:root {
+  --sl-font:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sl-font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+/* Unlayered rules beat Starlight's layered theme variables, so each palette is scoped to its theme. */
+:root:not([data-theme="light"]) {
+  --sl-color-accent-low: #0d3826;
+  --sl-color-accent: #35cb7d;
+  --sl-color-accent-high: #c5f9dd;
+  --sl-color-white: #f3f7f5;
+  --sl-color-gray-1: #d9e8e1;
+  --sl-color-gray-2: #b0c8bd;
+  --sl-color-gray-3: #78998a;
+  --sl-color-gray-4: #496d5d;
+  --sl-color-gray-5: #234537;
+  --sl-color-gray-6: #112b21;
+  --sl-color-black: #07130f;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #d3f8e4;
+  --sl-color-accent: #0a6b3c;
+  --sl-color-accent-high: #063d22;
+}
+
+:focus-visible {
+  outline: 0.2rem solid var(--sl-color-accent);
+  outline-offset: 0.2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

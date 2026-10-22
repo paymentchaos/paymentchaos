@@ -1,0 +1,54 @@
+---
+title: PaymentChaos
+description: Deterministic failure testing for payment and subscription integrations.
+template: splash
+hero:
+  tagline: Send provider-accurate webhook deliveries through deterministic chaos, then assert on your application's business state.
+  actions:
+    - text: Early-access quickstart
+      link: /docs/quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: Back to paymentchaos.com
+      link: /
+      icon: external
+---
+
+## What it is
+
+PaymentChaos is a local-first CLI and TypeScript library for testing payment and
+subscription webhook handling. It creates provider-shaped events, preserves the exact
+body bytes used for signing, schedules deliveries under a reproducible seed, and runs
+your own command to verify business state.
+
+The key question is not only “did the endpoint return `2xx`?” It is:
+
+> Did duplicates, stale ordering, delay, or concurrency corrupt an entitlement,
+> subscription, order, or ledger?
+
+## What it is not
+
+PaymentChaos is not a payment processor, production gateway, tunnel, request bin, API
+client, load tester, observability platform, or AI reviewer. Capture-and-replay tools
+solve a useful but different HTTP-inspection problem; PaymentChaos adds controlled
+failure schedules and application-state assertions.
+
+## Current status
+
+PaymentChaos is a private M1 prototype. It is **not published to npm**, the repository
+is not public, and there is no supported public install command yet.
+
+Early-access users get access to the source checkout, use the pinned Node and pnpm
+toolchain, and run the built CLI from that checkout. The current implementation
+includes:
+
+- provider adapters for Stripe, Razorpay and generic HMAC webhooks;
+- six built-in scenarios (see [Scenarios and chaos](/docs/scenarios/#built-in-scenarios));
+- two Stripe example apps, `stripe-express-naive` and `stripe-express-correct`, plus a
+  golden harness that runs both through the real CLI;
+- the four M1 chaos operators, command assertions, and terminal reports that print the
+  seed, plan hash and a reproduce command;
+- stable exit codes.
+
+These pages walk through the Stripe example. Razorpay and generic HMAC run the same way
+with their own `providers` entry; dedicated guides for them are not written yet.

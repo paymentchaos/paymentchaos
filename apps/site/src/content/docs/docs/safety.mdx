@@ -1,0 +1,67 @@
+---
+title: Exit codes and target safety
+description: Stable process exit codes and the explicit guard for non-local webhook targets.
+---
+
+## Exit codes
+
+| Code | Meaning |
+| ---: | --- |
+| `0` | All deliveries were accepted and all assertions passed. |
+| `1` | A business-state assertion failed, or a delivery was not accepted (a non-`2xx` response, a timeout, or a rejected signature). |
+| `2` | Configuration, scenario, usage or target-safety error, a missing secret variable, or a failed hook. |
+| `3` | The target could not be reached before any delivery got through (for example, connection refused or DNS failure). |
+| `4` | An internal PaymentChaos error, including a signing failure. |
+
+These codes are stable so local scripts and CI can tell a discovered business failure
+apart from invalid setup or infrastructure trouble. Exit codes `2`, `3` and `4` print an
+error instead of a delivery report. Once a delivery has reached the target, later
+connection failures count against individual deliveries and produce exit `1`.
+
+## Local targets by default
+
+PaymentChaos generates validly signed test events, so it refuses an unexpected remote
+target before resolving secrets, running hooks or sending a request. Only `http` and
+`https` URLs are accepted.
+
+Allowed by default:
+
+- `localhost`, and hostnames ending in `.localhost`, `.test` or `.internal` (which
+  includes `host.docker.internal`);
+- IPv4 loopback, private and link-local ranges: `127.0.0.0/8`, `10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16` and `169.254.0.0/16`;
+- IPv6 `::1`, unique local `fc00::/7` and link-local `fe80::/10`.
+
+Everything else needs an explicit opt-in, including `0.0.0.0`, carrier-grade NAT
+addresses (`100.64.0.0/10`) and `.local` names. To use another host, pass its exact
+hostname:
+
+```sh
+node packages/cli/dist/bin.js run stripe-subscription-renewal \
+  --allow-remote-target staging.example.com
+```
+
+The value must match the target URL's host. Matching ignores letter case and a trailing
+dot, but a parent domain does not cover its subdomains. Wildcards and `host:port` values
+are rejected, and the flag takes one host. It is an explicit safety acknowledgement, not a
+production-mode switch: use a dedicated test endpoint and a test signing secret.
+Generated Stripe events are marked `livemode: false`.
+
+## Request timeout
+
+Each delivery has a local 10-second request deadline by default. A delivery that runs
+out of time fails the run with exit `1`. Set a positive whole number of milliseconds when
+the test environment needs another budget:
+
+```sh
+node packages/cli/dist/bin.js run stripe-subscription-renewal --timeout-ms 15000
+```
+
+This is a PaymentChaos execution setting, not a claim about a provider's unpublished
+webhook timeout.
+
+## Secret and command boundaries
+
+Signing secrets are loaded from environment references at send time and are redacted
+from errors and reports. Assertion and hook commands receive an allowlisted environment
+plus `PAYMENTCHAOS_*` metadata; parent-process secrets are not forwarded implicitly.

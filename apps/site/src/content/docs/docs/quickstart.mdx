@@ -1,0 +1,98 @@
+---
+title: Early-access Stripe quickstart
+description: Run the real Stripe renewal scenario against the naive and corrected example apps.
+---
+
+PaymentChaos is not on npm yet. These instructions are for an early-access source
+checkout with Node 24.22.0 and Corepack available.
+
+## Build the checkout
+
+From the repository root:
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+## Run the complete demonstration
+
+The golden runner starts isolated copies of both example apps, invokes the real CLI,
+and checks their application state:
+
+```sh
+pnpm --filter @paymentchaos/golden-e2e demo
+```
+
+For seed `1337`, `stripe-express-naive` must fail because duplicate `invoice.paid`
+deliveries create multiple entitlements and ledger rows. `stripe-express-correct`
+must pass with one of each. The demo command exits `0` only when both expected outcomes
+occur.
+
+## Run the CLI against an example yourself
+
+Start the naive app in one terminal. It listens on `127.0.0.1` and reads its signing
+secret and port from the environment:
+
+```sh
+cd examples/stripe-express-naive
+STRIPE_WEBHOOK_SECRET=whsec_test_naive_example PORT=4242 pnpm start
+```
+
+In PowerShell:
+
+```powershell
+cd examples/stripe-express-naive
+$env:STRIPE_WEBHOOK_SECRET = "whsec_test_naive_example"
+$env:PORT = "4242"
+pnpm start
+```
+
+In the repository root, create `paymentchaos.config.yaml`:
+
+```yaml
+version: 1
+providers:
+  stripe:
+    target:
+      url: http://127.0.0.1:4242/webhooks/stripe
+      secret: ${STRIPE_WEBHOOK_SECRET}
+assert:
+  command: pnpm --dir examples/stripe-express-naive verify -- --base-url http://127.0.0.1:4242
+```
+
+Then, in a second terminal at the repository root, run the CLI. The assertion command
+runs in the directory the CLI was started from, which is why `--dir` is relative to the
+root.
+
+```sh
+STRIPE_WEBHOOK_SECRET=whsec_test_naive_example \
+  node packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
+```
+
+```powershell
+$env:STRIPE_WEBHOOK_SECRET = "whsec_test_naive_example"
+node packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
+```
+
+The process exits `1` after reporting the duplicate business records.
+
+## Compare with the correct app
+
+Stop the naive app. Start `examples/stripe-express-correct` the same way, and give it the
+same secret you pass to the CLI. Its built-in default is a different test secret, so a
+mismatch makes every delivery fail signature verification. Change the assertion command
+to the correct app:
+
+```yaml
+assert:
+  command: pnpm --dir examples/stripe-express-correct verify -- --base-url http://127.0.0.1:4242
+```
+
+Run the same scenario again. It exits `0`.
+
+The built-in `stripe-subscription-renewal` scenario sends `invoice.paid` and
+`customer.subscription.updated` through duplicate, reordered, and concurrent
+deliveries. Target URL, test secret reference, and assertion command stay in your
+project configuration.

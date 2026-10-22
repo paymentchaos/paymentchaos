@@ -1,0 +1,69 @@
+---
+title: Project configuration
+description: Configure local targets, secret references, hooks, and command assertions.
+---
+
+`paymentchaos.config.yaml` holds settings that belong to your project rather than to a
+reusable scenario. The CLI looks for a file with exactly that name in the current
+directory, then in each parent directory.
+
+```yaml
+version: 1
+providers:
+  stripe:
+    target:
+      url: http://127.0.0.1:4242/webhooks/stripe
+      secret: ${STRIPE_WEBHOOK_SECRET}
+hooks:
+  beforeEach: pnpm test:reset-db
+assert:
+  command: pnpm verify-payment-state
+  settle:
+    timeoutMs: 5000
+    intervalMs: 250
+```
+
+## Fields available in M1
+
+- `version` must be `1`.
+- `providers.<provider>.target.url` is the webhook endpoint. The provider keys are
+  `stripe`, `razorpay` and `generic-hmac`.
+- `providers.<provider>.target.secret` is an environment-variable reference written
+  exactly as `${NAME}`. Literal values and `$NAME` are rejected. `plan` works without it;
+  `run` exits `2` if it is missing.
+- `hooks.beforeEach` and `hooks.afterEach` are optional shell commands. They run once per
+  repetition: `beforeEach` before the first delivery, `afterEach` after the assertion.
+  Each has a 120-second limit, and a failing hook stops the run with exit `2`.
+- `assert.command` is the application-state check. See
+  [Application-state assertions](/docs/assertions/).
+- `assert.settle` re-runs that command until it passes or the timeout expires. Set both
+  `timeoutMs` (0 or more) and `intervalMs` (1 or more).
+
+Hooks and assertion commands run in the directory the CLI was started from, with the
+same allowlisted environment.
+
+A scenario file may set its own `target`, `hooks` or `assert`. Each one replaces the
+project's value as a whole rather than merging field by field, so a scenario's `assert`
+without `settle` turns settling off for that scenario. A built-in scenario such as
+`stripe-subscription-renewal` supplies the provider, lifecycle flow and chaos operators,
+and reads everything else from this file.
+
+## Secrets
+
+Set the referenced variable in the environment that launches PaymentChaos:
+
+```sh
+STRIPE_WEBHOOK_SECRET=whsec_test_only \
+  node packages/cli/dist/bin.js run stripe-subscription-renewal
+```
+
+`run` resolves the reference at startup, after the target safety check and before any
+hook or delivery, so a missing variable fails fast. Plans and reports keep the reference
+name, never the value. Keep `.env` files and real credentials out of source control, and
+use a test-mode signing secret for a local test application.
+
+## Validation
+
+YAML errors report the file and line, with a hint on how to fix them. Unknown fields are
+rejected so that a misspelling cannot silently disable a check. Scenario `params` are the
+exception: they are passed through to the provider flow.

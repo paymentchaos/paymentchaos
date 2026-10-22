@@ -1,0 +1,62 @@
+---
+title: Determinism and reproduction
+description: Seeds, plan hashes, run nonces, repeats, and the reproduce command.
+---
+
+PaymentChaos separates deterministic planning from nondeterministic application
+execution.
+
+## Seed and plan hash
+
+A seed initializes PaymentChaos's versioned pseudorandom generator. The compiled
+delivery order, delays, concurrency groups and chaos tags are deterministic, and they
+feed a stable plan hash. When a run reaches the report, it prints the seed on its first
+line and ends with a summary such as `seed=1337 plan=dcc5…`, showing a short hash
+prefix. `plan` prints the full hash:
+
+```sh
+node packages/cli/dist/bin.js plan paymentchaos/scenarios/renewal.yaml --seed 1337
+```
+
+Planning uses a logical clock and does not depend on local time, locale, Node's random
+generator, or `Math.random()`. Write a negative seed as `--seed=-5`.
+
+## IDs and stable reproduction
+
+By default, each repetition adds a fresh nonce to provider-shaped IDs, so repeated tests
+against a persistent database do not collide. Use `--stable-ids` when a reproduction must
+use exactly the same generated IDs:
+
+```sh
+node packages/cli/dist/bin.js run paymentchaos/scenarios/renewal.yaml \
+  --seed 1337 --repeat 20 --repeat-index 4 --stable-ids
+```
+
+With `--stable-ids`, IDs depend only on the seed and match what `plan` prints. Every
+repetition then reuses the same IDs, so reset application state between repetitions,
+for example in a `beforeEach` hook. The flag cannot recover the nonce-based IDs of an
+earlier run made without it.
+
+`--repeat-index` is one-based. Pass the same total `--repeat` value used in the
+original run.
+
+## The reproduce command
+
+When an assertion fails, the report prints a `reproduce:` line:
+
+```text
+reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337
+```
+
+When the run had more than one repetition, it also adds `--repeat` and the failed
+`--repeat-index`. It never adds `--stable-ids`, `--timeout-ms` or
+`--allow-remote-target`, so add any of those you used yourself. During the private
+source-checkout phase, run the same arguments through `node packages/cli/dist/bin.js`;
+the `npx paymentchaos` form is for the future published package.
+
+## The concurrency boundary
+
+Dispatch order is deterministic, but a target server decides how concurrent requests
+interleave. Repeats improve the chance of exposing a race; they cannot prove that a
+race is absent. The report states how many repetitions failed and includes this
+limitation when concurrent deliveries pass.
