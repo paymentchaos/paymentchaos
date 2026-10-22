@@ -19,7 +19,7 @@ function nodeLine(lineCounter: LineCounter, node: ParsedNode | null | undefined)
   if (node?.range === undefined) {
     return 1;
   }
-  return lineCounter.linePos(node.range[0]).line + 1;
+  return lineCounter.linePos(node.range[0]).line;
 }
 
 function getNodeAtPath(
@@ -99,7 +99,7 @@ async function readYamlDocument(filePath: string): Promise<{
   const doc = parseDocument(source, { lineCounter, strict: true });
   if (doc.errors.length > 0) {
     const err = doc.errors[0];
-    const line = err?.linePos?.[0]?.line !== undefined ? err.linePos[0].line + 1 : 1;
+    const line = err?.linePos?.[0]?.line !== undefined ? err.linePos[0].line : 1;
     throw new PaymentChaosError(
       "CONFIG_INVALID",
       messages.yamlValidation(

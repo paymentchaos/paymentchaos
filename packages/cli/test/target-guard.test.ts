@@ -1,6 +1,5 @@
-import { PaymentChaosError } from "@paymentchaos/core";
+import { assertTargetAllowed, PaymentChaosError } from "@paymentchaos/core";
 import { describe, expect, it } from "vitest";
-import { assertTargetAllowed } from "../src/engine/target-guard.ts";
 
 describe("remote target guard", () => {
   it("allows loopback by default", () => {
@@ -20,7 +19,9 @@ describe("remote target guard", () => {
 
   it("allows an explicitly permitted hostname", () => {
     expect(() =>
-      assertTargetAllowed("https://api.example.com/webhooks", "api.example.com"),
+      assertTargetAllowed("https://api.example.com/webhooks", {
+        allowRemoteTarget: "api.example.com",
+      }),
     ).not.toThrow();
   });
 });

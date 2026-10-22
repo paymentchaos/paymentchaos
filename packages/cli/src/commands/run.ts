@@ -2,8 +2,9 @@ import { glob, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderTerminalReport } from "@paymentchaos/report";
 import type { CommandDef } from "citty";
-import { createEngine } from "../engine/fake-engine.ts";
+import { createEngine } from "../engine/create-engine.ts";
 import { ExitCode, exitCodeFor, exitCodeForReport } from "../exit.ts";
+import { parseOptionalPositiveInt, parseOptionalSeed } from "../flags.ts";
 import { messages } from "../messages.ts";
 import { mergeScenarioWithProject } from "../scenario/merge.ts";
 import {
@@ -12,15 +13,6 @@ import {
   resolveScenarioRef,
 } from "../scenario/resolve.ts";
 import { loadProjectConfig } from "../yaml/load.ts";
-
-export interface SharedFlags {
-  seed?: number;
-  repeat?: number;
-  repeatIndex?: number;
-  reporter?: string;
-  out?: string;
-  allowRemoteTarget?: string;
-}
 
 function hasGlobMagic(ref: string): boolean {
   return ref.includes("*") || ref.includes("?") || ref.includes("[");
@@ -53,12 +45,14 @@ export function createRunCommand(): CommandDef {
       description: "Run one or more scenarios against the configured target.",
     },
     args: {
-      seed: { type: "string", description: "PRNG seed (printed either way)" },
-      repeat: { type: "string", description: "Repeat the scenario N times" },
-      "repeat-index": { type: "string", description: "Run a single repeat index (1-based)" },
-      reporter: { type: "string", description: "Report format (terminal)", default: "terminal" },
-      out: { type: "string", description: "Write the report to a file" },
-      "allow-remote-target": { type: "string", description: "Allow a non-local target hostname" },
+      seed: { type: "string", description: messages.runArgSeed },
+      repeat: { type: "string", description: messages.runArgRepeat },
+      "repeat-index": { type: "string", description: messages.runArgRepeatIndex },
+      reporter: { type: "string", description: messages.runArgReporter, default: "terminal" },
+      out: { type: "string", description: messages.runArgOut },
+      "allow-remote-target": { type: "string", description: messages.runArgAllowRemoteTarget },
+      "stable-ids": { type: "boolean", description: messages.runArgStableIds },
+      "timeout-ms": { type: "string", description: messages.runArgTimeoutMs },
     },
     async run(ctx) {
       const positional = ctx.args._ ?? [];
@@ -73,21 +67,36 @@ export function createRunCommand(): CommandDef {
         process.exit(ExitCode.Config);
       }
 
-      const seed =
-        ctx.args.seed !== undefined ? Number.parseInt(String(ctx.args.seed), 10) : undefined;
-      const repeat =
-        ctx.args.repeat !== undefined ? Number.parseInt(String(ctx.args.repeat), 10) : undefined;
-      const repeatIndex =
-        ctx.args["repeat-index"] !== undefined
-          ? Number.parseInt(String(ctx.args["repeat-index"]), 10)
-          : undefined;
+      let seedFlag: number | undefined;
+      let repeatFlag: number | undefined;
+      let repeatIndex: number | undefined;
+      let timeoutMillis: number | undefined;
+      try {
+        seedFlag = parseOptionalSeed(ctx.args.seed);
+        repeatFlag = parseOptionalPositiveInt(ctx.args.repeat, "repeat");
+        repeatIndex = parseOptionalPositiveInt(ctx.args["repeat-index"], "repeat-index");
+        timeoutMillis = parseOptionalPositiveInt(ctx.args["timeout-ms"], "timeout-ms");
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(exitCodeFor(error));
+      }
+
       const allowRemoteTarget = ctx.args["allow-remote-target"] as string | undefined;
+      const stableIds = ctx.args["stable-ids"] === true;
       const outPath = ctx.args.out as string | undefined;
 
       const cwd = process.cwd();
-      const project = await loadProjectConfig(cwd);
-      const engine = createEngine();
-      const refs = await expandScenarioArgs(cwd, positional);
+      let project: Awaited<ReturnType<typeof loadProjectConfig>>;
+      let engine: Awaited<ReturnType<typeof createEngine>>;
+      let refs: string[];
+      try {
+        project = await loadProjectConfig(cwd);
+        engine = await createEngine();
+        refs = await expandScenarioArgs(cwd, positional);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exit(exitCodeFor(error));
+      }
 
       let lastExit: (typeof ExitCode)[keyof typeof ExitCode] = ExitCode.Ok;
 
@@ -102,11 +111,8 @@ export function createRunCommand(): CommandDef {
           process.exit(exitCodeFor(error));
         }
         let scenario = loaded.scenario;
-        if (seed !== undefined) {
-          scenario = { ...scenario, seed };
-        }
-        if (repeat !== undefined) {
-          scenario = { ...scenario, repeat };
+        if (repeatFlag !== undefined) {
+          scenario = { ...scenario, repeat: repeatFlag };
         }
 
         try {
@@ -116,25 +122,41 @@ export function createRunCommand(): CommandDef {
           process.exit(exitCodeFor(error));
         }
 
-        const effectiveSeed = scenario.seed ?? seed ?? 1;
-        const effectiveRepeat = scenario.repeat ?? repeat ?? 1;
+        const effectiveSeed = seedFlag ?? scenario.seed;
+        const effectiveRepeat = scenario.repeat ?? repeatFlag ?? 1;
 
-        const report = await engine.run({
-          scenario,
-          cwd,
-          seed: effectiveSeed,
-          repeat: effectiveRepeat,
-          ...(repeatIndex !== undefined ? { repeatIndex } : {}),
-          ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
-        });
+        let outcome: Awaited<ReturnType<typeof engine.run>>;
+        try {
+          outcome = await engine.run({
+            scenario,
+            cwd,
+            ...(effectiveSeed !== undefined ? { seed: effectiveSeed } : {}),
+            repeat: effectiveRepeat,
+            ...(repeatIndex !== undefined ? { repeatIndex } : {}),
+            ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
+            ...(stableIds ? { stableIds: true } : {}),
+            ...(timeoutMillis !== undefined ? { timeoutMillis } : {}),
+          });
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(exitCodeFor(error));
+        }
+
+        console.log(messages.runSeedLine(outcome.report.seed));
 
         const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
-        const failedRepeatIndex =
-          report.repeatsFailed > 0 && repeatIndex !== undefined ? repeatIndex : undefined;
+        const scenarioRepeat = outcome.scenarioRepeat;
+        let failedRepeatIndex = outcome.failedRepeatIndex;
+        if (failedRepeatIndex === undefined && outcome.report.status !== "passed") {
+          failedRepeatIndex = repeatIndex;
+        }
 
-        const text = renderTerminalReport(report, {
+        const text = renderTerminalReport(outcome.report, {
           scenarioRef,
+          ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
+          ...(repeatIndex !== undefined ? { repeatSelection: true } : {}),
           ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
+          ...(outcome.notes.length > 0 ? { notes: outcome.notes } : {}),
           color: process.stdout.isTTY,
         });
 
@@ -143,7 +165,7 @@ export function createRunCommand(): CommandDef {
           await writeFile(path.resolve(cwd, outPath), text, "utf8");
         }
 
-        const code = exitCodeForReport(report);
+        const code = exitCodeForReport(outcome.report);
         if (code !== ExitCode.Ok) {
           lastExit = code;
         }
