@@ -87,7 +87,12 @@ export const messages = {
     `No target configured for provider "${provider}". Set providers.${provider}.target.url in paymentchaos.config.yaml or target.url in the scenario.`,
   targetSecretMissing: (provider: string) =>
     `No signing secret configured for provider "${provider}". Set target.secret to an environment reference such as \${STRIPE_WEBHOOK_SECRET}.`,
-  repeatInvalid: (repeat: number) => `repeat must be a whole number >= 1, got ${String(repeat)}.`,
+  repeatInvalid: (repeat: number) =>
+    `repeat must be a whole number from 1 to ${String(Number.MAX_SAFE_INTEGER)}, got ${String(repeat)}.`,
+  repeatIndexInvalid: (index: number, repeat: number) =>
+    `repeatIndex must be a whole number from 1 to ${String(repeat)} (the repeat count), got ${String(index)}. Pass the same --repeat as the original run, or omit --repeat-index to run every repetition.`,
+  repeatSelected: (index: number, repeat: number, stableIds: boolean) =>
+    `Ran only repetition ${String(index)} of ${String(repeat)}; counts cover that one run. It uses that repetition's index and the same seed and plan hash${stableIds ? " and ids" : ", with fresh ids (add stableIds to reuse them)"}. Concurrent deliveries interleave nondeterministically, so it may not reproduce the original outcome.`,
   hookFailed: (
     phase: string,
     command: string,

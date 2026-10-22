@@ -15,6 +15,12 @@ import { messages } from "./messages.ts";
 
 export const SIGNATURE_TOLERANCE_SEC = 300;
 
+// UTC milliseconds must fit JavaScript's interoperable Date/ISO time range.
+// https://tc39.es/ecma262/#sec-time-values-and-time-range
+const MAX_INSTANT_MILLIS = 8_640_000_000_000_000;
+const isSupportedInstant = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 0 && value <= MAX_INSTANT_MILLIS;
+
 // Stripe signs timestamp + '.' + unmodified body with SHA256; one v1 per active key.
 // https://docs.stripe.com/webhooks/signature
 // https://docs.stripe.com/webhooks#roll-endpoint-signing-secrets
@@ -28,10 +34,10 @@ export function sign(
   at: Instant,
   env: Env,
 ): SignedDelivery {
-  const timestamp = Math.floor(at / 1000);
-  if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
+  if (!isSupportedInstant(at)) {
     throw new PaymentChaosError("SIGNING_FAILED", messages.timestamp);
   }
+  const timestamp = Math.floor(at / 1000);
   const signatures = [keys.current, ...(keys.previous ?? [])].map(
     (ref) => `v1=${digest(delivery.body, resolveSecret(ref, env), timestamp)}`,
   );
@@ -44,6 +50,9 @@ export function sign(
 }
 
 export function verify(request: CapturedRequest, keys: SigningKeySet, env: Env): VerifyResult {
+  if (!isSupportedInstant(request.receivedAt)) {
+    return { valid: false, reason: messages.receptionTimestamp };
+  }
   const headers = Object.entries(request.headers).filter(
     ([name]) => name.toLowerCase() === "stripe-signature",
   );
@@ -53,14 +62,14 @@ export function verify(request: CapturedRequest, keys: SigningKeySet, env: Env):
   let timestamp = -1;
   const signatures: string[] = [];
   // Match SDK token handling (no trimming, last t wins, parseInt decimal semantics).
-  // Reject nonfinite/unsafe timestamps explicitly instead of inheriting its NaN bypass.
+  // Reject unsupported UTC timestamps explicitly instead of inheriting its NaN bypass.
   // https://github.com/stripe/stripe-node/blob/v18.5.0/src/Webhooks.ts
   for (const token of header.split(",")) {
     const [name, value] = token.split("=");
     if (name === "t") timestamp = Number.parseInt(value ?? "", 10);
     if (name === "v1" && value !== undefined) signatures.push(value);
   }
-  if (!Number.isSafeInteger(timestamp) || timestamp < 0 || signatures.length === 0) {
+  if (!isSupportedInstant(timestamp * 1000) || signatures.length === 0) {
     return { valid: false, reason: messages.malformedHeader };
   }
   let keyUsed: "current" | "previous" | undefined;

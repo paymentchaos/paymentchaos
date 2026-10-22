@@ -1,0 +1,12 @@
+{
+  "provider": "stripe",
+  "apiVersion": "2025-08-27.basil",
+  "source": "synthesized",
+  "recordedAt": null,
+  "synthesizedAt": "2026-10-22",
+  "sdk": "stripe@18.5.0",
+  "typesSource": "https://github.com/stripe/stripe-node/tree/v18.5.0/types",
+  "versionSource": "https://github.com/stripe/stripe-node/blob/v18.5.0/src/apiVersion.ts",
+  "fixtures": ["invoice.ts", "line.ts", "payment.ts", "subscription.ts", "noncanonical-renewal.fixture.json"],
+  "notes": "No captured data. Full resources satisfy official SDK types at construction. IDs and UTC timestamps are deterministically substituted from core. Noncanonical renewal is a stable-seed JPY/JP raw-body regression fixture; recordedAt is null because nothing was recorded from Stripe."
+}

@@ -38,6 +38,11 @@ export interface RunScenarioOptions {
   readonly seed?: number;
   /** Overrides `scenario.repeat` (`--repeat`). */
   readonly repeat?: number;
+  /**
+   * Run only this 1-based repetition of `repeat` (`--repeat-index`). It labels the run's
+   * metadata; it does not replay the original interleaving or, without `stableIds`, its ids.
+   */
+  readonly repeatIndex?: number;
   /** Disable the per-repeat id nonce (`--stable-ids`). */
   readonly stableIds?: boolean;
   readonly allowRemoteTarget?: string | readonly string[];
@@ -74,10 +79,14 @@ export interface RepeatOutcome {
 }
 
 export interface RunOutcome {
-  /** The contract report. Its deliveries and assertions are the first failed repeat's, else the last's. */
+  /**
+   * The contract report. Its deliveries and assertions are the first failed repeat's, else
+   * the last's; `repeat` and `repeatsFailed` count executed repetitions only.
+   */
   readonly report: RunReport;
   /** The plan, compiled with the first repeat's nonce. */
   readonly plan: DeliveryPlan;
+  /** The repetitions actually executed; one when `repeatIndex` is set. */
   readonly repeats: readonly RepeatOutcome[];
   /** Human-readable caveats for the reporter (e.g. "a pass does not prove no race"). */
   readonly notes: readonly string[];
@@ -134,6 +143,20 @@ export async function runScenario(
   // Before any hook or send: a blocked target must have no side effects at all.
   assertTargetAllowed(target.url, guard);
   const timeoutMillis = resolveRequestTimeout(options.timeoutMillis);
+  const repeat = options.repeat ?? scenario.repeat;
+  // Safe integers only: past 2^53, `index++` stops changing the value and never terminates.
+  if (!Number.isSafeInteger(repeat) || repeat < 1) {
+    throw new PaymentChaosError("CONFIG_INVALID", messages.repeatInvalid(repeat));
+  }
+  const selected = options.repeatIndex;
+  if (
+    selected !== undefined &&
+    (!Number.isSafeInteger(selected) || selected < 1 || selected > repeat)
+  ) {
+    throw new PaymentChaosError("CONFIG_INVALID", messages.repeatIndexInvalid(selected, repeat));
+  }
+  const firstIndex = selected ?? 1;
+  const lastIndex = selected ?? repeat;
   if (target.secret === undefined) {
     throw new PaymentChaosError("SECRET_MISSING", messages.targetSecretMissing(scenario.provider));
   }
@@ -143,10 +166,6 @@ export async function runScenario(
   const redact = secretValues(keys, env);
 
   const seed = options.seed ?? scenario.seed ?? generateSeed();
-  const repeat = options.repeat ?? scenario.repeat;
-  if (!Number.isInteger(repeat) || repeat < 1) {
-    throw new PaymentChaosError("CONFIG_INVALID", messages.repeatInvalid(repeat));
-  }
   const runId = options.runId ?? `run_${randomUUID()}`;
   const startedAt = toIso8601(asInstant(Date.now()));
   const compileOptions = (nonce: string | undefined) => ({
@@ -189,7 +208,7 @@ export async function runScenario(
 
   let plan: DeliveryPlan | undefined;
   const repeats: RepeatOutcome[] = [];
-  for (let index = 1; index <= repeat; index++) {
+  for (let index = firstIndex; index <= lastIndex; index++) {
     const compiled = compilePlan(
       scenario,
       adapter,
@@ -250,12 +269,16 @@ export async function runScenario(
   const finalPlan = plan as DeliveryPlan;
   const failed = repeats.filter((r) => !r.pass);
   const shown = failed[0] ?? (repeats.at(-1) as RepeatOutcome);
+  // Counts describe repetitions actually executed, never the unexecuted rest of `repeat`.
+  const executed = repeats.length;
   const notes: string[] = [];
   if (scenario.assert?.http !== undefined) notes.push(messages.httpAssertNotYetSupported());
-  if (failed.length > 0 && repeat > 1)
-    notes.push(messages.repeatsFailed(failed.length, repeat, shown.index));
+  if (selected !== undefined)
+    notes.push(messages.repeatSelected(selected, repeat, options.stableIds === true));
+  if (failed.length > 0 && executed > 1)
+    notes.push(messages.repeatsFailed(failed.length, executed, shown.index));
   if (failed.length === 0 && finalPlan.deliveries.some((d) => d.concurrencyGroup !== undefined)) {
-    notes.push(messages.raceNotProven(repeat));
+    notes.push(messages.raceNotProven(executed));
   }
 
   const report: RunReport = {
@@ -267,7 +290,7 @@ export async function runScenario(
     scenario: scenario.name,
     startedAt,
     finishedAt: toIso8601(asInstant(Date.now())),
-    repeat,
+    repeat: executed,
     repeatsFailed: failed.length,
     status: failed.length === 0 ? "passed" : "failed",
     deliveries: shown.execution.deliveries.map(
