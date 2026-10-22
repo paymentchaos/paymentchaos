@@ -2,12 +2,19 @@ import type { AssertionResult, RunReport } from "@paymentchaos/core";
 import pc from "picocolors";
 import { formatValue, shortPlanHash } from "./format.ts";
 import { messages } from "./messages.ts";
+import { quoteShellArg } from "./shell-quote.ts";
 
 export interface TerminalRenderOptions {
   /** Scenario file path or built-in name used in the reproduce command. */
   readonly scenarioRef: string;
+  /** Original `--repeat` / scenario repeat (for reproduce when one index was selected). */
+  readonly scenarioRepeat?: number;
   /** 1-based index of the failed repeat, when `report.repeat` > 1. */
   readonly failedRepeatIndex?: number;
+  /** When true, only one repetition was executed (--repeat-index). */
+  readonly repeatSelection?: boolean;
+  /** Caveats from {@link RunOutcome.notes} (core run surface). */
+  readonly notes?: readonly string[];
   readonly color?: boolean;
 }
 
@@ -38,9 +45,14 @@ function formatChaosTags(tags: readonly string[]): string {
 function buildReproduceCommand(
   scenarioRef: string,
   seed: number,
+  scenarioRepeat: number | undefined,
   failedRepeatIndex: number | undefined,
 ): string {
-  const parts = ["npx", "paymentchaos", "run", scenarioRef, "--seed", String(seed)];
+  const parts = ["npx", "paymentchaos", "run", quoteShellArg(scenarioRef), "--seed", String(seed)];
+  const totalRepeat = scenarioRepeat ?? 0;
+  if (totalRepeat > 1) {
+    parts.push("--repeat", String(totalRepeat));
+  }
   if (failedRepeatIndex !== undefined && failedRepeatIndex > 0) {
     parts.push("--repeat-index", String(failedRepeatIndex));
   }
@@ -78,7 +90,12 @@ function renderAssertion(
   if (report.status === "failed" || report.status === "error") {
     lines.push(
       messages.reproduce(
-        buildReproduceCommand(options.scenarioRef, report.seed, options.failedRepeatIndex),
+        buildReproduceCommand(
+          options.scenarioRef,
+          report.seed,
+          options.scenarioRepeat,
+          options.failedRepeatIndex,
+        ),
       ),
     );
   }
@@ -118,6 +135,14 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
     out.push(...renderAssertion(assertion, options, report, useColor));
   }
 
+  if (options.notes !== undefined && options.notes.length > 0) {
+    out.push("");
+    out.push(messages.notesHeading);
+    for (const note of options.notes) {
+      out.push(messages.noteLine(note));
+    }
+  }
+
   out.push("");
   const bannerParts = [
     report.status === "passed"
@@ -129,10 +154,15 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
         : messages.failedBanner,
     messages.seedPlan(report.seed, shortPlanHash(report.planHash)),
   ];
+  const repeatTotal = options.scenarioRepeat ?? report.repeat;
   if (report.repeatsFailed > 0 && options.failedRepeatIndex !== undefined) {
-    bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, report.repeat));
+    if (options.repeatSelection === true && repeatTotal > 1) {
+      bannerParts.push(messages.repeatSelectedFailed(options.failedRepeatIndex, repeatTotal));
+    } else {
+      bannerParts.push(messages.repeatFailed(options.failedRepeatIndex, repeatTotal));
+    }
   } else if (report.repeatsFailed > 0) {
-    bannerParts.push(`repeats failed: ${report.repeatsFailed}/${report.repeat}`);
+    bannerParts.push(messages.repeatsFailedSummary(report.repeatsFailed, report.repeat));
   }
   out.push(bannerParts.join("  "));
 

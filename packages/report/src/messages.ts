@@ -22,7 +22,13 @@ export const messages = {
   observed: (value: string) => `    observed: ${value}`,
   reproduce: (cmd: string) => `    reproduce: ${cmd}`,
   repeatFailed: (index: number, total: number) => `repeat ${index}/${total} failed`,
+  repeatSelectedFailed: (index: number, total: number) =>
+    `selected repeat ${index} of ${total} failed (1 executed)`,
+  repeatsFailedSummary: (failed: number, executed: number) =>
+    `repeats failed: ${String(failed)}/${String(executed)}`,
   seedPlan: (seed: number, planHash: string) => `seed=${seed}  plan=${planHash}`,
   statusNoResponse: "—",
   chaosNone: "—",
+  notesHeading: "Notes",
+  noteLine: (text: string) => `  ${text}`,
 } as const;

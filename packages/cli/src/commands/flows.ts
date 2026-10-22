@@ -1,5 +1,5 @@
 import type { CommandDef } from "citty";
-import { createEngine } from "../engine/fake-engine.ts";
+import { createEngine } from "../engine/create-engine.ts";
 import { messages } from "../messages.ts";
 
 export function createFlowsCommand(): CommandDef {
@@ -15,9 +15,9 @@ export function createFlowsCommand(): CommandDef {
         required: false,
       },
     },
-    run(ctx) {
+    async run(ctx) {
       const provider = ctx.args.provider as string | undefined;
-      const engine = createEngine();
+      const engine = await createEngine();
       const flows = engine.listFlows(provider);
       console.log(messages.flowsHeading);
       for (const flow of flows) {

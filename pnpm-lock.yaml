@@ -228,6 +228,9 @@ importers:
       '@paymentchaos/core':
         specifier: workspace:*
         version: link:../core
+      '@paymentchaos/provider-stripe':
+        specifier: workspace:*
+        version: link:../provider-stripe
       '@paymentchaos/report':
         specifier: workspace:*
         version: link:../report
