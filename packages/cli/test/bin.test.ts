@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,8 +95,9 @@ providers:
 `,
         "utf8",
       );
+      mkdirSync(path.join(dir, "paymentchaos", "scenarios"), { recursive: true });
       writeFileSync(
-        path.join(dir, "paymentchaos/scenarios/tiny.yaml"),
+        path.join(dir, "paymentchaos", "scenarios", "tiny.yaml"),
         `version: 1
 name: tiny
 provider: stripe
@@ -132,8 +133,9 @@ providers:
 `,
         "utf8",
       );
+      mkdirSync(path.join(dir, "paymentchaos", "scenarios"), { recursive: true });
       writeFileSync(
-        path.join(dir, "paymentchaos/scenarios/tiny.yaml"),
+        path.join(dir, "paymentchaos", "scenarios", "tiny.yaml"),
         `version: 1
 name: tiny
 provider: stripe

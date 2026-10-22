@@ -8,7 +8,8 @@ describe("quoteShellArg", () => {
 
   it("quotes paths with spaces", () => {
     const quoted = quoteShellArg("my scenarios/renewal.yaml");
-    expect(quoted).toMatch(/^'.+'$/);
+    // cmd.exe has no single-quote quoting, so Windows uses double quotes.
+    expect(quoted).toMatch(process.platform === "win32" ? /^".+"$/ : /^'.+'$/);
     expect(quoted).toContain("my scenarios");
   });
 });
