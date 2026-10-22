@@ -4,7 +4,7 @@ import demoTranscript from "../data/demo.txt?raw";
 // biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
 import BaseLayout from "../layouts/BaseLayout.astro";
 // biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
-import { siteMessages } from "../messages.ts";
+import { siteMessages, waitlistMessages } from "../messages.ts";
 
 // biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
 const loopsFormId = import.meta.env.PUBLIC_LOOPS_FORM_ID?.trim();
@@ -156,7 +156,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
             hidden
           >
             <div class="field">
-              <label for="waitlist-email">Work or personal email</label>
+              <label for="waitlist-email">{waitlistMessages.label}</label>
               <div class="field-row">
                 <input
                   id="waitlist-email"
@@ -168,13 +168,11 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
                   required
                   aria-describedby="waitlist-consent waitlist-status"
                 />
-                <button type="submit">Join the waitlist</button>
+                <button type="submit">{waitlistMessages.button}</button>
               </div>
             </div>
             <p class="consent" id="waitlist-consent">
-              By joining, you consent to receive PaymentChaos early-access updates by email.
-              Loops stores your email for this purpose. You can unsubscribe at any time. See our{" "}
-              <a href="/privacy/">privacy notice</a>.
+              {waitlistMessages.consent} <a href="/privacy/">{waitlistMessages.privacyLink}</a>.
             </p>
             <p
               class="form-status"
@@ -187,10 +185,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
             />
           </form>
           <noscript>
-            <p class="notice">
-              Joining the waitlist needs JavaScript, which is turned off in this browser. Turn it
-              on and reload this page to join.
-            </p>
+            <p class="notice">{waitlistMessages.noscript}</p>
           </noscript>
           </>
         ) : (

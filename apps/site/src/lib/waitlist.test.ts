@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { waitlistMessages } from "../messages.ts";
-import { createWaitlistMachine } from "./waitlist.ts";
+import { createWaitlistMachine, type WaitlistState, waitlistView } from "./waitlist.ts";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), {
@@ -21,6 +21,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("not-an-email")).resolves.toEqual({
       status: "error",
+      cause: "email",
       message: waitlistMessages.invalidEmail,
     });
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -60,6 +61,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.rejected,
     });
   });
@@ -72,6 +74,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.rejected,
     });
   });
@@ -84,6 +87,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: "Email is already subscribed.",
     });
   });
@@ -96,6 +100,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.rateLimited,
     });
   });
@@ -108,6 +113,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.invalidResponse,
     });
   });
@@ -123,6 +129,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.invalidResponse,
     });
   });
@@ -133,6 +140,7 @@ describe("waitlist state machine", () => {
 
     await expect(machine.submit("reader@example.com")).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.network,
     });
   });
@@ -152,6 +160,7 @@ describe("waitlist state machine", () => {
     await vi.advanceTimersByTimeAsync(50);
     await expect(result).resolves.toEqual({
       status: "error",
+      cause: "request",
       message: waitlistMessages.timeout,
     });
   });
@@ -218,5 +227,82 @@ describe("waitlist state machine", () => {
     expect(fetchImpl.mock.calls[0]?.[1]?.body).toEqual(
       new URLSearchParams({ email: "reader@example.com" }),
     );
+  });
+  it("reports a timeout when the body stalls after the headers arrive", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          init?.signal?.addEventListener("abort", () => {
+            controller.error(new DOMException("aborted", "AbortError"));
+          });
+        },
+      });
+      return new Response(body, { headers: { "Content-Type": "application/json" } });
+    });
+    const machine = createWaitlistMachine({ formId: "form-id", fetchImpl, timeoutMs: 50 });
+
+    const result = machine.submit("reader@example.com");
+    await vi.advanceTimersByTimeAsync(50);
+    await expect(result).resolves.toEqual({
+      status: "error",
+      cause: "request",
+      message: waitlistMessages.timeout,
+    });
+  });
+
+  it("reports a network error when the connection drops while the body streams", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"succ'));
+        controller.error(new TypeError("terminated"));
+      },
+    });
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(body, { headers: { "Content-Type": "application/json" } }));
+    const machine = createWaitlistMachine({ formId: "form-id", fetchImpl });
+
+    await expect(machine.submit("reader@example.com")).resolves.toEqual({
+      status: "error",
+      cause: "request",
+      message: waitlistMessages.network,
+    });
+  });
+});
+
+describe("waitlist view", () => {
+  const view = (state: WaitlistState) => waitlistView(state);
+
+  it("locks the submitted address and the button while pending", () => {
+    expect(view({ status: "pending", message: waitlistMessages.pending })).toEqual({
+      buttonLabel: waitlistMessages.buttonPending,
+      buttonDisabled: true,
+      inputReadOnly: true,
+      inputDisabled: false,
+      inputInvalid: false,
+      busy: true,
+      focus: null,
+    });
+  });
+
+  it("marks only an invalid address as invalid and returns focus to it", () => {
+    expect(
+      view({ status: "error", cause: "email", message: waitlistMessages.invalidEmail }),
+    ).toMatchObject({ inputInvalid: true, inputReadOnly: false, focus: "input" });
+  });
+
+  it("keeps the address valid after a service failure and focuses the retry button", () => {
+    expect(
+      view({ status: "error", cause: "request", message: waitlistMessages.network }),
+    ).toMatchObject({ inputInvalid: false, buttonDisabled: false, focus: "button" });
+  });
+
+  it("disables the form and focuses the confirmation after success", () => {
+    expect(view({ status: "success", message: waitlistMessages.success })).toMatchObject({
+      buttonDisabled: true,
+      inputDisabled: true,
+      focus: "status",
+    });
   });
 });

@@ -9,7 +9,8 @@ export type WaitlistState =
   | { readonly status: "idle"; readonly message: "" }
   | { readonly status: "pending"; readonly message: string }
   | { readonly status: "success"; readonly message: string }
-  | { readonly status: "error"; readonly message: string };
+  /** `email` means the address itself was rejected; `request` covers transport and service failures. */
+  | { readonly status: "error"; readonly cause: "email" | "request"; readonly message: string };
 
 type StateListener = (state: WaitlistState) => void;
 
@@ -62,6 +63,8 @@ export function createWaitlistMachine(options: WaitlistMachineOptions): Waitlist
     options.onStateChange?.(state);
     return state;
   };
+  const requestError = (message: string) =>
+    transition({ status: "error", cause: "request", message });
 
   return {
     get state() {
@@ -74,7 +77,11 @@ export function createWaitlistMachine(options: WaitlistMachineOptions): Waitlist
 
       const email = rawEmail.trim();
       if (!isValidEmail(email)) {
-        return transition({ status: "error", message: waitlistMessages.invalidEmail });
+        return transition({
+          status: "error",
+          cause: "email",
+          message: waitlistMessages.invalidEmail,
+        });
       }
 
       transition({ status: "pending", message: waitlistMessages.pending });
@@ -95,17 +102,20 @@ export function createWaitlistMachine(options: WaitlistMachineOptions): Waitlist
         );
 
         if (response.status === 429) {
-          return transition({ status: "error", message: waitlistMessages.rateLimited });
+          return requestError(waitlistMessages.rateLimited);
         }
         if (!isJson(response)) {
-          return transition({ status: "error", message: waitlistMessages.invalidResponse });
+          return requestError(waitlistMessages.invalidResponse);
         }
 
         let body: unknown;
         try {
           body = await response.json();
-        } catch {
-          return transition({ status: "error", message: waitlistMessages.invalidResponse });
+        } catch (error) {
+          // Only a malformed body is an invalid response. An abort or a dropped connection while
+          // the body streams is handled below as a timeout or network failure.
+          if (!(error instanceof SyntaxError)) throw error;
+          return requestError(waitlistMessages.invalidResponse);
         }
 
         if (response.ok && confirmsSuccess(body)) {
@@ -117,22 +127,48 @@ export function createWaitlistMachine(options: WaitlistMachineOptions): Waitlist
           });
         }
 
-        return transition({
-          status: "error",
-          message: responseMessage(body) ?? waitlistMessages.rejected,
-        });
+        return requestError(responseMessage(body) ?? waitlistMessages.rejected);
       } catch (error) {
         const timedOut =
           controller.signal.aborted ||
           (error instanceof DOMException && error.name === "AbortError");
-        return transition({
-          status: "error",
-          message: timedOut ? waitlistMessages.timeout : waitlistMessages.network,
-        });
+        return requestError(timedOut ? waitlistMessages.timeout : waitlistMessages.network);
       } finally {
         clearTimeout(timeout);
       }
     },
+  };
+}
+
+export interface WaitlistView {
+  readonly buttonLabel: string;
+  readonly buttonDisabled: boolean;
+  /** Read-only while pending, so the address on screen is always the one being submitted. */
+  readonly inputReadOnly: boolean;
+  readonly inputDisabled: boolean;
+  readonly inputInvalid: boolean;
+  readonly busy: boolean;
+  readonly focus: "input" | "button" | "status" | null;
+}
+
+/** How the form should look and where focus should go for a given state. */
+export function waitlistView(state: WaitlistState): WaitlistView {
+  const pending = state.status === "pending";
+  const success = state.status === "success";
+  const emailError = state.status === "error" && state.cause === "email";
+  let focus: WaitlistView["focus"] = null;
+  if (emailError) focus = "input";
+  else if (state.status === "error") focus = "button";
+  // The input is disabled after success, so focus moves to the confirmation itself.
+  else if (success) focus = "status";
+  return {
+    buttonLabel: pending ? waitlistMessages.buttonPending : waitlistMessages.button,
+    buttonDisabled: pending || success,
+    inputReadOnly: pending,
+    inputDisabled: success,
+    inputInvalid: emailError,
+    busy: pending,
+    focus,
   };
 }
 
@@ -152,21 +188,19 @@ export function mountWaitlistForm(
     formId,
     doubleOptIn,
     onStateChange(state) {
+      const view = waitlistView(state);
       status.textContent = state.message;
       status.dataset.state = state.status;
-      form.setAttribute("aria-busy", String(state.status === "pending"));
-      button.disabled = state.status === "pending" || state.status === "success";
-      input.disabled = state.status === "success";
-      button.textContent =
-        state.status === "pending" ? waitlistMessages.buttonPending : waitlistMessages.button;
-      if (state.status === "error") {
-        input.setAttribute("aria-invalid", "true");
-        input.focus();
-      } else {
-        input.removeAttribute("aria-invalid");
-      }
-      // The input is disabled after success, so focus moves to the confirmation itself.
-      if (state.status === "success") status.focus({ preventScroll: true });
+      form.setAttribute("aria-busy", String(view.busy));
+      button.disabled = view.buttonDisabled;
+      button.textContent = view.buttonLabel;
+      input.readOnly = view.inputReadOnly;
+      input.disabled = view.inputDisabled;
+      if (view.inputInvalid) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+      if (view.focus === "input") input.focus();
+      else if (view.focus === "button") button.focus();
+      else if (view.focus === "status") status.focus({ preventScroll: true });
     },
   });
 

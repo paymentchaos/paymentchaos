@@ -17,6 +17,12 @@ export const siteMessages = {
 } as const;
 
 export const waitlistMessages = {
+  label: "Work or personal email",
+  consent:
+    "By joining, you consent to receive PaymentChaos early-access updates by email. Loops stores your email for this purpose. You can unsubscribe at any time. See our",
+  privacyLink: "privacy notice",
+  noscript:
+    "Joining the waitlist needs JavaScript, which is turned off in this browser. Turn it on and reload this page to join.",
   idle: "",
   button: "Join the waitlist",
   buttonPending: "Joining…",
