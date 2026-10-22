@@ -12,6 +12,8 @@ export default defineConfig({
     csp: {
       directives: [
         "default-src 'self'",
+        // The waitlist form posts directly to Loops from the browser.
+        "connect-src 'self' https://app.loops.so",
         "img-src 'self'",
         "font-src 'self'",
         "object-src 'none'",

@@ -312,6 +312,70 @@ h3 {
   max-width: 18ch;
 }
 
+.field {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.field label {
+  font-weight: 750;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.65rem;
+}
+
+input[type="email"] {
+  min-width: 0;
+  flex: 1;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #5a7d6e;
+  border-radius: 0.4rem;
+  background: #06110d;
+  color: var(--text);
+  font: inherit;
+}
+
+button {
+  min-height: 3rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  background: var(--accent);
+  color: var(--accent-dark);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.consent {
+  max-width: 50rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.form-status {
+  min-height: 1.7rem;
+  margin: 1rem 0 0;
+  font-weight: 700;
+}
+
+.form-status[data-state="error"] {
+  color: var(--danger);
+}
+
+.form-status[data-state="success"] {
+  color: var(--accent);
+}
+
 .notice {
   padding: 1rem 1.2rem;
   border-left: 0.25rem solid var(--danger);
@@ -350,6 +414,11 @@ h3 {
   .grid,
   .split {
     grid-template-columns: 1fr;
+  }
+
+  .field-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .site-footer {
