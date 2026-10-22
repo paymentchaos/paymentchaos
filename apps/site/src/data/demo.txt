@@ -1,0 +1,55 @@
+$ pnpm --filter @paymentchaos/golden-e2e demo
+
+$ node --experimental-sqlite --import tsx src/demo.ts
+PaymentChaos golden demo (seed=1337, engine=cli)
+
+=== stripe-express-naive (expect business failure) ===
+seed 1337
+Deliveries
+#0  invoice.paid  evt_vqZ1Af1Hits3DNqYBWZYTbr6  attempt 1  200  24.5ms  reorder,concurrent
+#1  invoice.paid  evt_vqZ1Af1Hits3DNqYBWZYTbr6  attempt 2  200  22.2ms  reorder,concurrent
+#2  invoice.paid  evt_vqZ1Af1Hits3DNqYBWZYTbr6  attempt 3  200  22.1ms  reorder,concurrent
+#3  invoice.paid  evt_vqZ1Af1Hits3DNqYBWZYTbr6  attempt 4  200  1.7ms  duplicate,reorder
+#4  invoice.paid  evt_vqZ1Af1Hits3DNqYBWZYTbr6  attempt 5  200  1.4ms  duplicate,reorder
+#5  customer.subscription.updated  evt_vqZ1Af1Hwbotm5Xu1xskc1DM  attempt 1  200  32.3ms  reorder
+
+Assertions
+✓ every validly signed delivery is accepted
+✗ The assertion command exited with 1 after 1 attempt(s).
+✗ Duplicate invoice.paid delivery created 5 entitlement records.
+    expected: 1
+    observed: 5
+✓ subscription_active
+✗ Duplicate invoice.paid delivery created 5 renewal ledger entries.
+    expected: 1
+    observed: 5
+✓ subscription_stripe_id
+
+reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337
+
+PAYMENTCHAOS FAILED  seed=1337  plan=dcc5…
+naive exit 1 (expected)
+
+=== stripe-express-correct (expect pass) ===
+seed 1337
+Deliveries
+#0  invoice.paid  evt_6HXiuQEsits3DNqYBWZYTbr6  attempt 1  200  13.4ms  reorder,concurrent
+#1  invoice.paid  evt_6HXiuQEsits3DNqYBWZYTbr6  attempt 2  200  11.0ms  reorder,concurrent
+#2  invoice.paid  evt_6HXiuQEsits3DNqYBWZYTbr6  attempt 3  200  10.9ms  reorder,concurrent
+#3  invoice.paid  evt_6HXiuQEsits3DNqYBWZYTbr6  attempt 4  200  1.2ms  duplicate,reorder
+#4  invoice.paid  evt_6HXiuQEsits3DNqYBWZYTbr6  attempt 5  200  0.8ms  duplicate,reorder
+#5  customer.subscription.updated  evt_6HXiuQEswbotm5Xu1xskc1DM  attempt 1  200  1.0ms  reorder
+
+Assertions
+✓ every validly signed delivery is accepted
+✓ assert.command: 'node' '--…
+✓ renewal_entitlements
+✓ subscription_active
+✓ renewal_ledger
+✓ subscription_stripe_id
+
+Notes
+  All 1 repetition(s) passed. Concurrent deliveries interleave nondeterministically on your server, so this lowers but does not rule out the chance of a race. Raise repeat to test harder.
+
+PAYMENTCHAOS PASSED  seed=1337  plan=dcc5…
+correct exit 0 (expected)

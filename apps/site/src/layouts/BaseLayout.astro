@@ -1,0 +1,50 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use these props.
+const { title, description } = Astro.props;
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this URL.
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#07130f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href={canonical} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="PaymentChaos home">
+        <span aria-hidden="true">PC</span>
+        PaymentChaos
+      </a>
+      <nav aria-label="Primary navigation">
+        <a class="nav-wide" href="/#how-it-works">How it works</a>
+        <a href="/docs/">Docs</a>
+        <a class="nav-cta" href="/#waitlist">Early access</a>
+      </nav>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <p>PaymentChaos is a private prototype. No analytics. No trackers.</p>
+      <nav aria-label="Footer navigation">
+        <a href="/docs/">Documentation</a>
+        <a href="/privacy/">Privacy</a>
+      </nav>
+    </footer>
+  </body>
+</html>
