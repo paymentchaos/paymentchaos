@@ -240,6 +240,12 @@ importers:
       '@paymentchaos/core':
         specifier: workspace:*
         version: link:../core
+      '@paymentchaos/provider-generic':
+        specifier: workspace:*
+        version: link:../provider-generic
+      '@paymentchaos/provider-razorpay':
+        specifier: workspace:*
+        version: link:../provider-razorpay
       '@paymentchaos/provider-stripe':
         specifier: workspace:*
         version: link:../provider-stripe
@@ -255,6 +261,13 @@ importers:
       yaml:
         specifier: 2.9.1
         version: 2.9.1
+    devDependencies:
+      razorpay:
+        specifier: 2.9.6
+        version: 2.9.6(debug@4.4.3)
+      standardwebhooks:
+        specifier: 1.0.0
+        version: 1.0.0
 
   packages/core:
     dependencies:
