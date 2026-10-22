@@ -1,0 +1,209 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: Astro renders this value in the template.
+import demoTranscript from "../data/demo.txt?raw";
+// biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
+import BaseLayout from "../layouts/BaseLayout.astro";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { siteMessages, waitlistMessages } from "../messages.ts";
+
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
+const loopsFormId = import.meta.env.PUBLIC_LOOPS_FORM_ID?.trim();
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
+const loopsDoubleOptIn = import.meta.env.PUBLIC_LOOPS_DOUBLE_OPT_IN?.trim() === "true";
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
+const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
+---
+
+<BaseLayout
+  title="PaymentChaos — deterministic payment webhook failure testing"
+  description="Break your payment integration before production does with deterministic webhook chaos and application-state assertions."
+>
+  <section class="shell section" aria-labelledby="hero-title">
+    <p class="section-label">Private prototype · early access</p>
+    <h1 id="hero-title">Break your payment integration before production does</h1>
+    <p class="lede">
+      PaymentChaos sends provider-accurate webhook deliveries through duplicates, stale
+      ordering, delays, and concurrent retries—then checks whether your application’s
+      business state is still correct.
+    </p>
+    <div class="button-row">
+      <a class="button" href="#waitlist">{siteMessages.ctaWaitlist}</a>
+      <a class="button secondary" href="/docs/">{siteMessages.ctaDocs}</a>
+      {githubUrl && <a class="button secondary" href={githubUrl}>{siteMessages.ctaGithub}</a>}
+    </div>
+  </section>
+
+  <section class="shell section" aria-labelledby="failures-title">
+    <p class="section-label">The happy path is not enough</p>
+    <h2 id="failures-title">Three deliveries. Three costly assumptions.</h2>
+    <div class="grid">
+      <article class="card">
+        <span class="number" aria-hidden="true">01 / duplicate</span>
+        <h3>One renewal grants twice</h3>
+        <p>
+          The provider retries an event after a lost acknowledgement. Both deliveries return
+          200, but an entitlement is inserted twice because processing is not idempotent.
+        </p>
+      </article>
+      <article class="card">
+        <span class="number" aria-hidden="true">02 / stale state</span>
+        <h3>An old cancellation wins</h3>
+        <p>
+          A delayed cancellation arrives after a newer renewal. Code that trusts arrival order
+          revokes a subscription that is currently active.
+        </p>
+      </article>
+      <article class="card">
+        <span class="number" aria-hidden="true">03 / concurrency</span>
+        <h3>Retries race the check</h3>
+        <p>
+          Concurrent deliveries both pass a check-then-insert guard before either writes. A
+          duplicate slips through because the operation is not atomic.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="shell section" aria-labelledby="demo-title">
+    <p class="section-label">Real run · seed 1337</p>
+    <h2 id="demo-title">The naive app fails. The corrected app passes.</h2>
+    <p class="lede">
+      This committed transcript comes from the real CLI delivering the same Stripe renewal
+      scenario to both example applications. Event IDs, ports, and latencies vary by run.
+    </p>
+    <div class="terminal">
+      <div class="terminal-bar" aria-hidden="true">
+        <span>paymentchaos</span>
+        <span>stripe-subscription-renewal</span>
+      </div>
+      <pre tabindex="0" aria-label={siteMessages.demoLabel}><code>{demoTranscript}</code></pre>
+    </div>
+  </section>
+
+  <section class="shell section" id="how-it-works" aria-labelledby="works-title">
+    <p class="section-label">How it works</p>
+    <h2 id="works-title">Test the invariant, not just the response.</h2>
+    <div class="grid">
+      <article class="card">
+        <span class="number" aria-hidden="true">01</span>
+        <h3>Choose a scenario</h3>
+        <p>
+          Start from a provider lifecycle such as a Stripe subscription renewal, or describe a
+          versioned scenario in YAML.
+        </p>
+      </article>
+      <article class="card">
+        <span class="number" aria-hidden="true">02</span>
+        <h3>Apply deterministic chaos</h3>
+        <p>
+          Duplicate, reorder, delay, or release deliveries concurrently. The seed reproduces
+          the same delivery plan and plan hash.
+        </p>
+      </article>
+      <article class="card">
+        <span class="number" aria-hidden="true">03</span>
+        <h3>Assert on application state</h3>
+        <p>
+          Run your own verification command after delivery. Exit codes make failures useful in
+          local scripts and CI, while optional JSON checks explain what changed.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="shell section split" aria-labelledby="difference-title">
+    <div>
+      <p class="section-label">A different job</p>
+      <h2 id="difference-title">Beyond capture and replay</h2>
+      <p class="lede">
+        Capture-and-replay tools are useful for inspecting and resending HTTP traffic.
+        PaymentChaos focuses on a complementary question: can a deterministic sequence of
+        provider-shaped deliveries corrupt business state?
+      </p>
+    </div>
+    <ul class="comparison">
+      <li>
+        <h3>Provider-aware generation</h3>
+        <p>Correct event shapes, raw bytes, and signatures for controlled test data.</p>
+      </li>
+      <li>
+        <h3>Purposeful failure schedules</h3>
+        <p>Composable operators model duplicate, reordered, delayed, and concurrent delivery.</p>
+      </li>
+      <li>
+        <h3>Business-state verdicts</h3>
+        <p>Your command checks entitlements, subscriptions, ledgers, or any invariant your app owns.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section class="shell section" id="waitlist" aria-labelledby="waitlist-title">
+    <div class="waitlist-panel">
+      <p class="section-label">Early access</p>
+      <h2 id="waitlist-title">Help validate PaymentChaos</h2>
+      <p class="lede">
+        PaymentChaos is a private prototype and is not published to npm yet. Join the waitlist
+        to hear when guided early access opens.
+      </p>
+      {
+        loopsFormId ? (
+          <>
+          <form
+            data-waitlist-form
+            data-form-id={loopsFormId}
+            data-double-opt-in={String(loopsDoubleOptIn)}
+            novalidate
+            hidden
+          >
+            <div class="field">
+              <label for="waitlist-email">{waitlistMessages.label}</label>
+              <div class="field-row">
+                <input
+                  id="waitlist-email"
+                  name="email"
+                  type="email"
+                  inputmode="email"
+                  autocomplete="email"
+                  maxlength="254"
+                  required
+                  aria-describedby="waitlist-consent waitlist-status"
+                />
+                <button type="submit">{waitlistMessages.button}</button>
+              </div>
+            </div>
+            <p class="consent" id="waitlist-consent">
+              {waitlistMessages.consent} <a href="/privacy/">{waitlistMessages.privacyLink}</a>.
+            </p>
+            <p
+              class="form-status"
+              id="waitlist-status"
+              data-waitlist-status
+              data-state="idle"
+              role="status"
+              aria-live="polite"
+              tabindex="-1"
+            />
+          </form>
+          <noscript>
+            <p class="notice">{waitlistMessages.noscript}</p>
+          </noscript>
+          </>
+        ) : (
+          <p class="notice" role="status">{siteMessages.waitlistUnavailable}</p>
+        )
+      }
+    </div>
+  </section>
+
+  {
+    loopsFormId && (
+      <script>
+        import { mountWaitlistForm } from "../lib/waitlist.ts";
+
+        const form = document.querySelector<HTMLFormElement>("[data-waitlist-form]");
+        const formId = form?.dataset.formId;
+        if (form && formId) mountWaitlistForm(form, formId, form.dataset.doubleOptIn === "true");
+      </script>
+    )
+  }
+</BaseLayout>

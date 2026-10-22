@@ -1,0 +1,18 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Page not found — PaymentChaos"
+  description="The requested PaymentChaos page does not exist."
+>
+  <article class="shell section prose">
+    <p class="section-label">404</p>
+    <h1>This page does not exist</h1>
+    <p class="lede">The link may be out of date, or the address may contain a typo.</p>
+    <p>
+      <a href="/">Go to the PaymentChaos homepage</a> or <a href="/docs/">read the docs</a>.
+    </p>
+  </article>
+</BaseLayout>
