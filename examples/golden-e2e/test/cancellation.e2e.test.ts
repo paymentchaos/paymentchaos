@@ -74,12 +74,14 @@ describe("golden end-to-end: stripe-cancellation-out-of-order", () => {
       });
 
       expect(verify.exitCode).toBe(0);
-      const state = app.db
-        .prepare("SELECT stripe_subscription_id, status FROM subscriptions")
-        .get() as { stripe_subscription_id: string; status: string };
-      expect(state.status).toBe("active");
-      expect(state.stripe_subscription_id).toBe(ids.subscription);
-      expect(state.stripe_subscription_id).not.toBe(ids.subscription_2);
+      const rows = app.db
+        .prepare("SELECT stripe_subscription_id, status FROM stripe_subscriptions")
+        .all() as Array<{ stripe_subscription_id: string; status: string }>;
+      const statusById = Object.fromEntries(
+        rows.map((row) => [row.stripe_subscription_id, row.status]),
+      );
+      expect(statusById[ids.subscription as string]).toBe("active");
+      expect(statusById[ids.subscription_2 as string]).toBe("canceled");
     } finally {
       await app.close();
     }

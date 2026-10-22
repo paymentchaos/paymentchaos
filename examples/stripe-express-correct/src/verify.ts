@@ -20,6 +20,13 @@ async function fetchState(baseUrl: string, customerId: string): Promise<AppState
   return (await response.json()) as AppState;
 }
 
+function describeSubscriptions(state: AppState): string {
+  if (state.subscriptions.length === 0) {
+    return "missing";
+  }
+  return state.subscriptions.map((row) => `${row.stripeSubscriptionId}:${row.status}`).join(", ");
+}
+
 function buildChecks(state: AppState, expectedActiveSubscriptionId?: string): CheckResult[] {
   const renewalEntitlements = state.entitlements.filter((row) => row.kind === "renewal");
   const renewalLedger = state.ledger.filter((row) => row.type === "renewal");
@@ -37,13 +44,12 @@ function buildChecks(state: AppState, expectedActiveSubscriptionId?: string): Ch
     },
     {
       name: "subscription_active",
-      pass: state.subscription?.status === "active",
+      pass: state.hasAccess,
       expected: "active",
-      observed: state.subscription?.status ?? "missing",
-      message:
-        state.subscription?.status === "active"
-          ? messages.subscriptionActiveOk
-          : messages.subscriptionActiveStaleCancel,
+      observed: describeSubscriptions(state),
+      message: state.hasAccess
+        ? messages.subscriptionActiveOk
+        : messages.subscriptionActiveStaleCancel,
     },
     {
       name: "renewal_ledger",
@@ -58,16 +64,16 @@ function buildChecks(state: AppState, expectedActiveSubscriptionId?: string): Ch
   ];
 
   if (expectedActiveSubscriptionId !== undefined) {
-    const observedId = state.subscription?.stripeSubscriptionId ?? "missing";
+    const renewed = state.subscriptions.find(
+      (row) => row.stripeSubscriptionId === expectedActiveSubscriptionId,
+    );
+    const pass = renewed?.grantsAccess === true;
     checks.push({
       name: "subscription_stripe_id",
-      pass: observedId === expectedActiveSubscriptionId,
-      expected: expectedActiveSubscriptionId,
-      observed: observedId,
-      message:
-        observedId === expectedActiveSubscriptionId
-          ? messages.subscriptionIdOk
-          : messages.subscriptionIdStale,
+      pass,
+      expected: `${expectedActiveSubscriptionId}:active`,
+      observed: renewed ? `${renewed.stripeSubscriptionId}:${renewed.status}` : "missing",
+      message: pass ? messages.subscriptionIdOk : messages.subscriptionIdStale,
     });
   }
 

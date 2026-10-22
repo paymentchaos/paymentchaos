@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { TERMINAL_STATUSES } from "./subscriptions.js";
 
 type StripeEvent = {
   id: string;
@@ -74,6 +75,22 @@ function recordSubscriptionTransition(
   ).run(customerId, eventId, stripeSubId, status, eventCreated);
 }
 
+const terminalPlaceholders = TERMINAL_STATUSES.map(() => "?").join(", ");
+
+/**
+ * Store one subscription snapshot, keyed by Stripe subscription id, in a single atomic
+ * statement. The snapshot replaces the stored one unless:
+ * - the stored status is terminal (`canceled`, `incomplete_expired`): it never reverts; or
+ * - the snapshot's `event.created` is strictly older than the stored one.
+ *
+ * Ties: Stripe's `created` has one-second resolution, so two events for the same
+ * subscription can share it and `created` cannot order them
+ * (https://docs.stripe.com/webhooks#event-ordering). On a tie the later delivery wins. A
+ * terminal snapshot therefore wins its second and then sticks, which is right because
+ * nothing follows a terminal status for that id. A tie between two non-terminal snapshots
+ * is genuinely ambiguous: production code should re-fetch the subscription from the Stripe
+ * API at that point instead of trusting either snapshot.
+ */
 function applySubscriptionSnapshot(
   db: DatabaseSync,
   customerId: string,
@@ -82,25 +99,14 @@ function applySubscriptionSnapshot(
   eventCreated: number,
 ): void {
   db.prepare(
-    `INSERT INTO subscriptions (customer_id, stripe_subscription_id, status, last_event_created)
+    `INSERT INTO stripe_subscriptions (stripe_subscription_id, customer_id, status, last_event_created)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT(customer_id) DO UPDATE SET
-       stripe_subscription_id = CASE
-         WHEN excluded.last_event_created >= subscriptions.last_event_created
-         THEN excluded.stripe_subscription_id
-         ELSE subscriptions.stripe_subscription_id
-       END,
-       status = CASE
-         WHEN excluded.last_event_created >= subscriptions.last_event_created
-         THEN excluded.status
-         ELSE subscriptions.status
-       END,
-       last_event_created = CASE
-         WHEN excluded.last_event_created >= subscriptions.last_event_created
-         THEN excluded.last_event_created
-         ELSE subscriptions.last_event_created
-       END`,
-  ).run(customerId, stripeSubId, status, eventCreated);
+     ON CONFLICT(stripe_subscription_id) DO UPDATE SET
+       status = excluded.status,
+       last_event_created = excluded.last_event_created
+     WHERE stripe_subscriptions.status NOT IN (${terminalPlaceholders})
+       AND excluded.last_event_created >= stripe_subscriptions.last_event_created`,
+  ).run(stripeSubId, customerId, status, eventCreated, ...TERMINAL_STATUSES);
 }
 
 export function handleStripeEvent(db: DatabaseSync, event: StripeEvent): void {
@@ -120,7 +126,10 @@ export function handleStripeEvent(db: DatabaseSync, event: StripeEvent): void {
       const subscription = event.data.object;
       const stripeCustomer = stripeCustomerId(subscription);
       const customerId = internalCustomerId(db, stripeCustomer);
-      const stripeSubId = typeof subscription.id === "string" ? subscription.id : "sub_unknown";
+      if (typeof subscription.id !== "string") {
+        throw new Error("expected string subscription id on event object");
+      }
+      const stripeSubId = subscription.id;
       const status =
         event.type === "customer.subscription.deleted"
           ? "canceled"
