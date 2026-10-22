@@ -5,8 +5,8 @@ Deliberately buggy Stripe subscription webhook handler used as the **negative** 
 The app is a minimal Express service backed by SQLite (`node:sqlite`). It models subscription entitlements for demo scenarios:
 
 - `POST /webhooks/stripe` — Stripe-style signed webhooks
-- `GET /__test__/state?customer=<internal id>` — JSON snapshot for assertions
-- `npm run verify` — command assertion script ([ADR 0005](../../docs/adr/0005-assertions.md))
+- `GET /__test__/state?customer=<cus_… or internal id>` — JSON snapshot for assertions
+- `npm run verify -- <cus_…> --base-url http://127.0.0.1:PORT` — command assertion ([ADR 0005](../../docs/adr/0005-assertions.md))
 
 ## Run locally
 
@@ -50,9 +50,11 @@ The webhook route uses `express.json()` and verifies `JSON.stringify(req.body)` 
 Running the `stripe-subscription-renewal` scenario against this app should **fail** verification, for example:
 
 ```text
-Duplicate invoice.paid delivery created two entitlement records.
+Duplicate invoice.paid delivery created 5 entitlement records.
   expected: 1
-  observed: 2
+  observed: 5
 ```
 
-See `examples/golden-e2e` for the stub scenario used until the CLI stream wires in.
+(`duplicate`×2 plus `concurrent`×3 on the same logical `invoice.paid` → five deliveries.)
+
+See `examples/golden-e2e` for the real core/CLI golden harness.

@@ -1,4 +1,6 @@
 import type { AppState } from "./db.js";
+import { messages } from "./messages.js";
+import { parseVerifyArgs } from "./verify-args.js";
 
 interface CheckResult {
   name: string;
@@ -6,20 +8,6 @@ interface CheckResult {
   expected: string;
   observed: string;
   message: string;
-}
-
-function customerIdFromEnv(): string {
-  const fromEnv = process.env.PAYMENTCHAOS_ID_CUSTOMER ?? process.env.CUSTOMER_ID;
-  if (fromEnv && fromEnv.length > 0) {
-    return fromEnv;
-  }
-  const arg = process.argv[2];
-  if (arg && arg.length > 0) {
-    return arg;
-  }
-  throw new Error(
-    "Set PAYMENTCHAOS_ID_CUSTOMER (or pass customer id as the first argument) before running verify.",
-  );
 }
 
 async function fetchState(baseUrl: string, customerId: string): Promise<AppState> {
@@ -32,7 +20,7 @@ async function fetchState(baseUrl: string, customerId: string): Promise<AppState
   return (await response.json()) as AppState;
 }
 
-function buildChecks(state: AppState): CheckResult[] {
+function buildChecks(state: AppState, expectedActiveSubscriptionId?: string): CheckResult[] {
   const renewalEntitlements = state.entitlements.filter((row) => row.kind === "renewal");
   const renewalLedger = state.ledger.filter((row) => row.type === "renewal");
 
@@ -44,8 +32,8 @@ function buildChecks(state: AppState): CheckResult[] {
       observed: String(renewalEntitlements.length),
       message:
         renewalEntitlements.length === 1
-          ? "Exactly one renewal entitlement exists."
-          : "Duplicate invoice.paid delivery created two entitlement records.",
+          ? messages.renewalEntitlementsOk
+          : messages.renewalEntitlementsDuplicate(renewalEntitlements.length),
     },
     {
       name: "subscription_active",
@@ -54,8 +42,8 @@ function buildChecks(state: AppState): CheckResult[] {
       observed: state.subscription?.status ?? "missing",
       message:
         state.subscription?.status === "active"
-          ? "Subscription remains active after out-of-order events."
-          : "Older cancellation revoked a newer active subscription.",
+          ? messages.subscriptionActiveOk
+          : messages.subscriptionActiveStaleCancel,
     },
     {
       name: "renewal_ledger",
@@ -64,19 +52,32 @@ function buildChecks(state: AppState): CheckResult[] {
       observed: String(renewalLedger.length),
       message:
         renewalLedger.length === 1
-          ? "Exactly one renewal ledger entry exists."
-          : "Duplicate invoice.paid delivery created multiple renewal ledger entries.",
+          ? messages.renewalLedgerOk
+          : messages.renewalLedgerDuplicate(renewalLedger.length),
     },
   ];
+
+  if (expectedActiveSubscriptionId !== undefined) {
+    const observedId = state.subscription?.stripeSubscriptionId ?? "missing";
+    checks.push({
+      name: "subscription_stripe_id",
+      pass: observedId === expectedActiveSubscriptionId,
+      expected: expectedActiveSubscriptionId,
+      observed: observedId,
+      message:
+        observedId === expectedActiveSubscriptionId
+          ? messages.subscriptionIdOk
+          : messages.subscriptionIdStale,
+    });
+  }
 
   return checks;
 }
 
 async function main(): Promise<void> {
-  const baseUrl = process.env.PAYMENTCHAOS_STATE_BASE_URL ?? "http://127.0.0.1:3000";
-  const customerId = customerIdFromEnv();
+  const { customerId, baseUrl, expectedActiveSubscriptionId } = parseVerifyArgs(process.argv);
   const state = await fetchState(baseUrl, customerId);
-  const checks = buildChecks(state);
+  const checks = buildChecks(state, expectedActiveSubscriptionId);
   const pass = checks.every((check) => check.pass);
 
   process.stdout.write(`${JSON.stringify({ checks })}\n`);

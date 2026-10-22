@@ -23,6 +23,7 @@ export interface AppState {
     currency: string;
     sourceEventId: string;
   }>;
+  subscriptionTransitionCount: number;
 }
 
 export function openDatabase(dbPath: string): DatabaseSync {
@@ -59,11 +60,37 @@ export function openDatabase(dbPath: string): DatabaseSync {
       event_id TEXT PRIMARY KEY,
       processed_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS subscription_transitions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id TEXT NOT NULL REFERENCES customers(id),
+      event_id TEXT NOT NULL,
+      stripe_subscription_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      event_created INTEGER NOT NULL
+    );
   `);
   return db;
 }
 
-export function readState(db: DatabaseSync, customerId: string): AppState {
+/** Resolve `cus_…` Stripe ids or internal `cus_internal_…` keys to the customers row id. */
+export function resolveInternalCustomerId(db: DatabaseSync, query: string): string {
+  if (query.startsWith("cus_internal_")) {
+    return query;
+  }
+  if (query.startsWith("cus_")) {
+    const row = db.prepare("SELECT id FROM customers WHERE stripe_customer_id = ?").get(query) as
+      | { id: string }
+      | undefined;
+    if (row) {
+      return row.id;
+    }
+  }
+  return query;
+}
+
+export function readState(db: DatabaseSync, customerQuery: string): AppState {
+  const customerId = resolveInternalCustomerId(db, customerQuery);
+
   const subscription = db
     .prepare(
       `SELECT stripe_subscription_id, status, last_event_created
@@ -98,6 +125,10 @@ export function readState(db: DatabaseSync, customerId: string): AppState {
     source_event_id: string;
   }>;
 
+  const transitionRow = db
+    .prepare("SELECT COUNT(*) AS n FROM subscription_transitions WHERE customer_id = ?")
+    .get(customerId) as { n: number };
+
   return {
     subscription: subscription
       ? {
@@ -119,11 +150,13 @@ export function readState(db: DatabaseSync, customerId: string): AppState {
       currency: row.currency,
       sourceEventId: row.source_event_id,
     })),
+    subscriptionTransitionCount: transitionRow.n,
   };
 }
 
 export function resetDatabase(db: DatabaseSync): void {
   db.exec(`
+    DELETE FROM subscription_transitions;
     DELETE FROM ledger;
     DELETE FROM entitlements;
     DELETE FROM processed_events;

@@ -3,12 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "vitest run --config vitest.config.ts",
+    "demo": "node --experimental-sqlite --import tsx src/demo.ts",
+    "test:e2e": "node --experimental-sqlite --import tsx ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "paymentchaos": "workspace:*",
+    "@paymentchaos/core": "workspace:*",
     "@paymentchaos/example-stripe-express-correct": "workspace:*",
     "@paymentchaos/example-stripe-express-naive": "workspace:*",
+    "@paymentchaos/provider-stripe": "workspace:*",
+    "stripe": "18.5.0",
     "tsx": "4.20.6",
     "vitest": "5.0.5"
   }
