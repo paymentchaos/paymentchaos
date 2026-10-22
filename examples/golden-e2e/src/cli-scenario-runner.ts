@@ -51,7 +51,17 @@ export function createCliScenarioRunner(options: {
       base.search = "";
       base.hash = "";
       const baseUrl = base.toString().replace(/\/$/, "");
-      const verifyCommand = `${process.execPath} --import tsx ${join(options.exampleDir, verifyScript)} --base-url ${baseUrl}`;
+      // The CLI runs this through /bin/sh or cmd.exe from a temp directory: quote paths
+      // (node often lives under "Program Files" on Windows) and resolve tsx from here.
+      const quote = (arg: string) => `"${arg}"`;
+      const verifyCommand = [
+        quote(process.execPath),
+        "--import",
+        quote(import.meta.resolve("tsx")),
+        quote(join(options.exampleDir, verifyScript)),
+        "--base-url",
+        quote(baseUrl),
+      ].join(" ");
 
       const { projectDir } = writeTempProject({
         exampleDir: options.exampleDir,
