@@ -1,0 +1,33 @@
+# AWS Amplify Hosting build for the static site in apps/site.
+# Monorepo format: https://docs.aws.amazon.com/amplify/latest/userguide/monorepo-configuration.html
+# Security headers live in customHttp.yml, not here: Amplify recommends moving custom headers
+# out of the build specification. https://docs.aws.amazon.com/amplify/latest/userguide/custom-headers.html
+version: 1
+applications:
+  - appRoot: apps/site
+    frontend:
+      # Run every command from the workspace root so pnpm sees the whole workspace and lockfile.
+      buildPath: /
+      phases:
+        preBuild:
+          commands:
+            # The AL2023 build image ships Node 22 and 24; install the exact .node-version pin.
+            # https://docs.aws.amazon.com/amplify/latest/userguide/troubleshooting-general.html#update-node-version
+            - nvm install 24.22.0
+            - nvm use 24.22.0
+            # pnpm is not in the build image; Corepack provides the version pinned in packageManager.
+            - export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+            - corepack enable
+            - pnpm config set store-dir .pnpm-store
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - export ASTRO_TELEMETRY_DISABLED=1
+            - pnpm --filter @paymentchaos/site build
+      artifacts:
+        baseDirectory: apps/site/dist
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - .pnpm-store/**/*
