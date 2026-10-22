@@ -1,0 +1,29 @@
+{
+  "name": "@paymentchaos/provider-generic",
+  "version": "0.0.0",
+  "description": "Configurable raw-byte HMAC and Standard Webhooks for developer payloads.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@paymentchaos/core": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "standardwebhooks": "1.0.0",
+    "fast-check": "4.10.2"
+  }
+}
