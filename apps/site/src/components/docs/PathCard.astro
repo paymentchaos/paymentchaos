@@ -1,0 +1,26 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { type DocsPathKind, docsMessages } from "../../docs-messages";
+
+interface Props {
+  title: string;
+  href: string;
+  kind: DocsPathKind;
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use these props.
+const { title, href, kind } = Astro.props;
+---
+
+<li>
+  <a class="pc-path-card" href={href}>
+    <span class="pc-path-card__kind">{docsMessages.pathKind[kind]}</span>
+    <span class="pc-path-card__title">
+      {title}
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+        <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+      </svg>
+    </span>
+    <div class="pc-path-card__text"><slot /></div>
+  </a>
+</li>
