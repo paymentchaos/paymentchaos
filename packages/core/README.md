@@ -16,7 +16,7 @@ outcome.report;   // RunReport (contract), outcome.repeats for per-repetition de
 |---|---|
 | `compilePlan(scenario, adapter, { seed, nonce? })` | Scenario + adapter → `{ plan, bodies, ids, apiVersion }`. Pure; same seed + scenario + engine version → same `plan.planHash`, with or without a nonce. Powers `paymentchaos plan`. |
 | `applyChaos`, `defaultOperatorRegistry` | Apply `duplicate`, `reorder`, `delay`, `concurrent` in declared order. |
-| `executePlan(compiled, adapter, { url, keys, timeScale?, timeoutMillis?, allowRemoteTarget?, onDelivery? })` | Sends the plan with undici. Concurrency groups are released together; delays are scaled by `timeScale`. Each request gets the local `timeoutMillis` (default `DEFAULT_REQUEST_TIMEOUT_MS`, 10 000 ms). |
+| `executePlan(compiled, adapter, { url, keys, timeScale?, timeoutMillis?, allowRemoteTarget?, onDelivery? })` | Sends the plan with undici. Concurrency groups are released together; delays are scaled by `timeScale`. Each request gets the local `timeoutMillis` (default `DEFAULT_REQUEST_TIMEOUT_MS`, 10 000 ms) as its only deadline: undici's header and body timeouts are disabled per request, on injected dispatchers too. |
 | `runCommandAssertion(command, { metadata, settle? })` | Runs the assertion command (exit 0 = pass) with the allowlisted environment and parses the optional JSON result document. |
 | `runScenario(scenario, options)` | The whole run: hooks, compile, execute, built-in check, command assertion, `repeat`. Accepts `timeoutMillis` and passes it to every execution. Emits `RunEvent`s for live output. |
 | `assertTargetAllowed(url, { allowRemoteTarget })` | Remote-target guard. `executePlan` and `runScenario` call it before any hook or send. |

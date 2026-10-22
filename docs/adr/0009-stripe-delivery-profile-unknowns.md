@@ -49,9 +49,12 @@ describe a provider that does not retry.
    a number, so a local timeout is never presented as a provider guarantee and a
    provider fact never silently changes local strictness.
 3. **Validation.** The selected local timeout must be an integer from 1 to
-   2 147 483 647 ms (the largest delay `AbortSignal.timeout()` honors; above it Node
-   fires after 1 ms). Anything else fails with `CONFIG_INVALID` before secrets are
-   resolved, hooks run or any request is sent.
+   2 147 483 647 ms, the largest delay `AbortSignal.timeout()` honors. Above it Node
+   either clamps the delay to 1 ms with a warning (up to 2^32 − 1) or throws, so
+   PaymentChaos rejects any value outside the range with `CONFIG_INVALID` before
+   secrets are resolved, hooks run or any request is sent. The executor disables undici's own header and body timeouts on every request
+   (`headersTimeout: 0`, `bodyTimeout: 0`, including on an injected dispatcher), so
+   the local timeout is the only deadline for a whole request.
 4. **Retries in M1.** The engine schedules no automatic retries. Redeliveries in M1
    are exactly those the scenario's chaos operators plan (`duplicate`, `concurrent`),
    so they are deterministic for a given seed. A future `retryOn5xx` operator may
