@@ -133,7 +133,7 @@ describe("runScenario", () => {
     });
     expect(run.report.assertions.map((a) => [a.name, a.pass])).toEqual([
       ["every validly signed delivery is accepted", true],
-      [`assert.command: ${verify}`, true],
+      ["assert.command exits 0", true],
       ["one entitlement per invoice", true],
     ]);
     expect(run.notes.join(" ")).toMatch(/does not rule out/);

@@ -67,8 +67,8 @@ function buildReproduceCommand(
 }
 
 /**
- * Shorten an assertion name for the terminal only. Command assertions are named after the
- * full shell command, which can run to hundreds of characters; JSON reports keep it whole.
+ * Shorten an assertion name for the terminal only. Check names come from the user's assertion
+ * command and can run to hundreds of characters; JSON reports keep them whole.
  * Slices by code point so a non-ASCII name is never split mid-character.
  */
 export function truncateAssertionName(name: string, maxLength = MAX_ASSERTION_NAME_LENGTH): string {

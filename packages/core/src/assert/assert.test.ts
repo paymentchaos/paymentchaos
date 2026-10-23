@@ -118,7 +118,7 @@ describe("runCommandAssertion", () => {
     expect(outcome.checks).toEqual(doc.checks);
     expect(commandAssertionResults(outcome)).toEqual([
       {
-        name: `assert.command: ${cmd}`,
+        name: "assert.command exits 0",
         pass: false,
         message: expect.stringContaining("exited with 1"),
       },

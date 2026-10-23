@@ -156,9 +156,8 @@ describe("renderTerminalReport", () => {
     expect(text).toMatch(/PAYMENTCHAOS PASSED {2}seed=1337 {2}plan=7f3a…\n$/);
   });
 
-  it("caps long command assertion names in the terminal but leaves the report untouched", () => {
-    const command = `"/opt/node/bin/node" --import "file:///work/node_modules/tsx/dist/loader.mjs" "/work/examples/stripe-express-correct/src/verify.ts" --base-url "http://127.0.0.1:46501"`;
-    const name = `assert.command: ${command}`;
+  it("caps long assertion names in the terminal but leaves the report untouched", () => {
+    const name = `ledger: ${"one row per invoice, in the invoice currency, ".repeat(4).trim()}`;
     const report: RunReport = {
       ...singleRunFailure,
       status: "passed",
@@ -166,7 +165,7 @@ describe("renderTerminalReport", () => {
       assertions: [{ name, pass: true }],
     };
     const text = renderTerminalReport(report, { scenarioRef: "x", color: false });
-    const row = text.split("\n").find((line) => line.startsWith("✓ assert.command:"));
+    const row = text.split("\n").find((line) => line.startsWith("✓ ledger:"));
     expect(row).toBeDefined();
     expect(Array.from(row ?? "").length).toBeLessThanOrEqual(82);
     expect(row?.endsWith("…")).toBe(true);
