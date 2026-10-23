@@ -129,7 +129,7 @@ export async function runCommandAssertion(
 /** Report rows: one for the command verdict, then one per JSON check. */
 export function commandAssertionResults(outcome: CommandAssertionOutcome): AssertionResult[] {
   const verdict: AssertionResult = {
-    name: messages.commandAssertionName(outcome.command),
+    name: messages.commandAssertionName(),
     pass: outcome.pass,
     ...(outcome.pass
       ? {}

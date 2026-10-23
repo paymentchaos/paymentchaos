@@ -60,7 +60,8 @@ export const messages = {
     `Could not connect to the target at ${host} (${code}). Is your app running and listening on that address?`,
   deliveryTimedOut: (millis: number) => `no response within ${String(millis)} ms`,
   deliveryFailed: (reason: string) => `request failed: ${reason}`,
-  commandAssertionName: (command: string) => `assert.command: ${command}`,
+  // The command itself stays out of the name: it can be long, and it may carry a secret.
+  commandAssertionName: () => "assert.command exits 0",
   commandProtocolName: () => "assert.command output",
   commandProtocolInvalid: (issue: string) =>
     `stdout ended with JSON that is not a PaymentChaos result document ({ "checks": [{ "name", "pass", … }] }): ${issue}. The exit code still decides the verdict.`,
