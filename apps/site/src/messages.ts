@@ -11,7 +11,7 @@ export const siteMessages = {
   footerPrivacy: "Privacy",
   waitlistUnavailable: "The waitlist is temporarily unavailable. Please check back soon.",
   ctaWaitlist: "Join the waitlist",
-  ctaDocs: "Read the current docs",
+  ctaDocs: "Read the docs",
   ctaGithub: "View on GitHub",
   demoLabel: "PaymentChaos seed 1337 terminal output",
 } as const;
