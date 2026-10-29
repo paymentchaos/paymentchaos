@@ -7,6 +7,10 @@ An accepted HTTP response does not prove that business state is correct. In M1,
 PaymentChaos runs a command after delivery so any application stack can inspect its
 own database, API, or domain model.
 
+HTTP assertions (`assert.http`) are planned for a later release. Configuring one currently
+exits with a configuration error before any hooks or webhooks run, even if a command
+assertion is also present. Use `assert.command` for application-state checks.
+
 ```yaml
 assert:
   command: pnpm verify-payment-state

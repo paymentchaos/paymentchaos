@@ -105,7 +105,7 @@ export const messages = {
   planHashDrift: () =>
     "The plan hash changed between repetitions of one run. Planning must be deterministic; this is a bug in PaymentChaos or the provider adapter.",
   httpAssertNotYetSupported: () =>
-    "assert.http is not supported yet (planned for v0.1) and was ignored. Use assert.command for now.",
+    "assert.http is not supported yet. Remove it and use assert.command to check application state. No hooks or webhook deliveries were run.",
   repeatsFailed: (failed: number, total: number, shown: number) =>
     `${String(failed)} of ${String(total)} repetitions failed; showing repetition ${String(shown)}.`,
   raceNotProven: (total: number) =>
