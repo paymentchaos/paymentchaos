@@ -6,12 +6,12 @@ PaymentChaos golden demo (seed=1337, engine=cli)
 === stripe-express-naive (expect business failure) ===
 seed 1337
 Deliveries
-#0  invoice.paid  evt_HEmbjDsfits3DNqYBWZYTbr6  attempt 1  200  32.3ms  reorder,concurrent
-#1  invoice.paid  evt_HEmbjDsfits3DNqYBWZYTbr6  attempt 2  200  30.2ms  reorder,concurrent
-#2  invoice.paid  evt_HEmbjDsfits3DNqYBWZYTbr6  attempt 3  200  30.2ms  reorder,concurrent
-#3  invoice.paid  evt_HEmbjDsfits3DNqYBWZYTbr6  attempt 4  200  1.4ms  duplicate,reorder
-#4  invoice.paid  evt_HEmbjDsfits3DNqYBWZYTbr6  attempt 5  200  1.3ms  duplicate,reorder
-#5  customer.subscription.updated  evt_HEmbjDsfwbotm5Xu1xskc1DM  attempt 1  200  32.2ms  reorder
+#0  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 1  200  21.9ms  reorder,concurrent
+#1  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 2  200  19.8ms  reorder,concurrent
+#2  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 3  200  19.8ms  reorder,concurrent
+#3  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 4  200  1.4ms  duplicate,reorder
+#4  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 5  200  1.5ms  duplicate,reorder
+#5  customer.subscription.updated  evt_yjMWgMdNwbotm5Xu1xskc1DM  attempt 1  200  32.3ms  reorder
 
 Assertions
 ✓ every validly signed delivery is accepted
@@ -25,7 +25,7 @@ Assertions
     observed: 5
 ✓ subscription_stripe_id
 
-reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337
+reproduce: node <repo>/packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
 
 PAYMENTCHAOS FAILED  seed=1337  plan=dcc5…
 naive exit 1 (expected)
@@ -33,12 +33,12 @@ naive exit 1 (expected)
 === stripe-express-correct (expect pass) ===
 seed 1337
 Deliveries
-#0  invoice.paid  evt_mxIBm806its3DNqYBWZYTbr6  attempt 1  200  12.2ms  reorder,concurrent
-#1  invoice.paid  evt_mxIBm806its3DNqYBWZYTbr6  attempt 2  200  9.7ms  reorder,concurrent
-#2  invoice.paid  evt_mxIBm806its3DNqYBWZYTbr6  attempt 3  200  9.7ms  reorder,concurrent
-#3  invoice.paid  evt_mxIBm806its3DNqYBWZYTbr6  attempt 4  200  1.3ms  duplicate,reorder
-#4  invoice.paid  evt_mxIBm806its3DNqYBWZYTbr6  attempt 5  200  1.0ms  duplicate,reorder
-#5  customer.subscription.updated  evt_mxIBm806wbotm5Xu1xskc1DM  attempt 1  200  1.1ms  reorder
+#0  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 1  200  11.6ms  reorder,concurrent
+#1  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 2  200  9.2ms  reorder,concurrent
+#2  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 3  200  9.2ms  reorder,concurrent
+#3  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 4  200  1.2ms  duplicate,reorder
+#4  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 5  200  0.8ms  duplicate,reorder
+#5  customer.subscription.updated  evt_OpROvtOkwbotm5Xu1xskc1DM  attempt 1  200  1.2ms  reorder
 
 Assertions
 ✓ every validly signed delivery is accepted

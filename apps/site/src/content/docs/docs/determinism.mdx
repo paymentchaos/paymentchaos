@@ -42,17 +42,19 @@ original run.
 
 ## The reproduce command
 
-When an assertion fails, the report prints a `reproduce:` line:
+When an assertion fails, the report prints a `reproduce:` line. It reuses the Node binary
+and the PaymentChaos CLI copy that ran, so copying it never downloads a package:
 
 ```text
-reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337
+reproduce: /usr/local/bin/node /work/paymentchaos/packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
 ```
 
-When the run had more than one repetition, it also adds `--repeat` and the failed
-`--repeat-index`. It never adds `--stable-ids`, `--timeout-ms` or
-`--allow-remote-target`, so add any of those you used yourself. During the private
-source-checkout phase, run the same arguments through `node packages/cli/dist/bin.js`;
-the `npx paymentchaos` form is for the future published package.
+Run it from the same app directory. When the run had more than one repetition, it also
+adds `--repeat` and the failed `--repeat-index`. It keeps `--stable-ids`, `--timeout-ms`
+and `--allow-remote-target` if you used them. Secrets are never part of the command; they
+still come from your environment. On Windows, if a path contains `"`, `%` or `!`, the report
+asks you to rerun the same scenario and seed yourself, because `cmd.exe` cannot quote those
+safely.
 
 ## The concurrency boundary
 

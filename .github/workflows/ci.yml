@@ -45,6 +45,8 @@ jobs:
         env:
           # node:sqlite requires this flag on the minimum supported Node 22.12.
           NODE_OPTIONS: --experimental-sqlite
+      # Installs the private archive offline, outside the workspace, and reruns the sandbox.
+      - run: pnpm test:private-package
 
   # macOS minutes are billed at a large multiplier on private repositories.
   # Runs on main, manual dispatch, or pull requests labelled `ci:full`.
@@ -69,3 +71,4 @@ jobs:
       - run: pnpm test:e2e
         env:
           NODE_OPTIONS: --experimental-sqlite
+      - run: pnpm test:private-package

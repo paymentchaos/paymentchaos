@@ -26,9 +26,13 @@ describe("golden end-to-end via the paymentchaos CLI", () => {
         "Duplicate invoice.paid delivery created 5 renewal ledger entries.",
       );
       expect(result.stdout).toContain("PAYMENTCHAOS FAILED");
-      expect(result.stdout).toContain(
-        `reproduce: npx paymentchaos run stripe-subscription-renewal --seed ${seed}\n`,
+      // The reproduce line reuses the Node binary and CLI copy that ran; it never suggests npx.
+      expect(result.stdout).toMatch(
+        new RegExp(
+          `reproduce: \\S+ \\S*bin\\.js'? run stripe-subscription-renewal --seed ${seed}\n`,
+        ),
       );
+      expect(result.stdout).not.toContain("npx");
       expect(result.stdout.match(/reproduce:/g)).toHaveLength(1);
       expect(result.stdout).not.toContain("repeat 1/1");
     } finally {

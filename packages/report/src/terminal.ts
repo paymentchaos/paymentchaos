@@ -8,6 +8,10 @@ import { quoteShellArg } from "./shell-quote.ts";
 const MAX_ASSERTION_NAME_LENGTH = 80;
 
 export interface TerminalRenderOptions {
+  /** Executable and arguments for an installed CLI. Defaults to paymentchaos on PATH. */
+  readonly cliCommand?: readonly string[];
+  /** Runtime flags needed to repeat the original invocation. Never include secrets. */
+  readonly runArgs?: readonly string[];
   /** Scenario file path or built-in name used in the reproduce command. */
   readonly scenarioRef: string;
   /** Original `--repeat` / scenario repeat (for reproduce when one index was selected). */
@@ -55,15 +59,30 @@ function buildReproduceCommand(
   seed: number,
   repeatTotal: number,
   failedRepeatIndex: number | undefined,
-): string {
-  const parts = ["npx", "paymentchaos", "run", quoteShellArg(scenarioRef), "--seed", String(seed)];
+  options: TerminalRenderOptions,
+): string | undefined {
+  const parts = [
+    ...(options.cliCommand ?? ["paymentchaos"]),
+    "run",
+    scenarioRef,
+    "--seed",
+    String(seed),
+  ];
   if (repeatTotal > 1) {
     parts.push("--repeat", String(repeatTotal));
     if (failedRepeatIndex !== undefined && failedRepeatIndex > 0) {
       parts.push("--repeat-index", String(failedRepeatIndex));
     }
   }
-  return parts.join(" ");
+  parts.push(...(options.runArgs ?? []));
+  // cmd.exe expands percent variables (and ! with delayed expansion), even inside quotes.
+  if (
+    parts.some(
+      (part) => /[\r\n]/.test(part) || (process.platform === "win32" && /["%!]/.test(part)),
+    )
+  )
+    return undefined;
+  return parts.map(quoteShellArg).join(" ");
 }
 
 /**
@@ -133,16 +152,14 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
   const repeatTotal = effectiveRepeatTotal(report, options);
   if (report.status === "failed" || report.status === "error") {
     out.push("");
-    out.push(
-      messages.reproduce(
-        buildReproduceCommand(
-          options.scenarioRef,
-          report.seed,
-          repeatTotal,
-          options.failedRepeatIndex,
-        ),
-      ),
+    const command = buildReproduceCommand(
+      options.scenarioRef,
+      report.seed,
+      repeatTotal,
+      options.failedRepeatIndex,
+      options,
     );
+    out.push(command === undefined ? messages.reproduceUnavailable : messages.reproduce(command));
   }
 
   if (options.notes !== undefined && options.notes.length > 0) {

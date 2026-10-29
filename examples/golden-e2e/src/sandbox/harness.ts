@@ -12,8 +12,8 @@ const bin = fileURLToPath(new URL("../../../../packages/cli/dist/bin.js", import
 export type CaseContext = Parameters<Parameters<Harness["test"]>[1]>[0];
 export type Harness = Awaited<ReturnType<typeof createHarness>>;
 
-export async function createHarness(root: string, timeoutMs = 20_000) {
-  if (!existsSync(bin)) throw new Error(m.missingBuild);
+export async function createHarness(root: string, timeoutMs = 20_000, executable = bin) {
+  if (!existsSync(executable)) throw new Error(m.missingBuild);
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(join(root, "run-"));
   const secret = `whsec_${randomBytes(32).toString("base64")}`;
@@ -69,7 +69,7 @@ export async function createHarness(root: string, timeoutMs = 20_000) {
           if (override.startsWith("whsec_") && override.length > 6) secrets.add(override.slice(6));
         }
         const result = await runCliProcess(
-          bin,
+          executable,
           args,
           cwd,
           { ...process.env, PC_SANDBOX_SECRET: secret, NO_COLOR: "1", ...env },

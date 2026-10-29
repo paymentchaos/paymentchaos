@@ -1,5 +1,6 @@
 import { glob, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PaymentChaosError } from "@paymentchaos/core";
 import { renderTerminalReport } from "@paymentchaos/report";
 import type { CommandDef } from "citty";
@@ -111,6 +112,14 @@ export function createRunCommand(): CommandDef {
         }
 
         const text = renderTerminalReport(outcome.report, {
+          cliCommand: [process.execPath, fileURLToPath(new URL("../bin.js", import.meta.url))],
+          runArgs: [
+            ...(stableIds ? ["--stable-ids"] : []),
+            ...(timeoutMillis !== undefined ? ["--timeout-ms", String(timeoutMillis)] : []),
+            ...(allowRemoteTarget !== undefined
+              ? ["--allow-remote-target", allowRemoteTarget]
+              : []),
+          ],
           scenarioRef,
           ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
           ...(repeatIndex !== undefined ? { repeatSelection: true } : {}),
