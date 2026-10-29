@@ -2,6 +2,7 @@ export const messages = {
   usage: "Usage: pnpm --filter @paymentchaos/golden-e2e sandbox /absolute/path/to/sandbox",
   missingBuild: "Build PaymentChaos first with pnpm build, then rerun the sandbox.",
   timeout: "CLI did not complete normally within the sandbox's 20-second limit.",
+  cleanupFailed: "Could not clean up the sandbox CLI process tree; stopping the matrix.",
   secretLeak: "CLI output contained a sandbox signing secret; saved output was redacted.",
   exit: (expected: number, actual: number) =>
     `Expected CLI exit ${expected}; observed ${actual}. See command logs.`,

@@ -96,7 +96,7 @@ export async function runCases(h: Harness) {
     ["--provider", "stripe", "--provider", "razorpay"],
     ["--secret-env", "whsec_synthetic_private_key"],
     ["--secret-env", "${SECRET}"],
-    ["--target", "https://example.com/hook"],
+    ["--target", "https://example.invalid/hook"],
     ["--target", "http://user:password@localhost/hook"],
   ])
     await h.test(`init refuses ${args[0]} ${args[1] ?? ""}`, async (t) => {
@@ -267,7 +267,7 @@ export async function runCases(h: Harness) {
     ["run"],
     ["unknown-command"],
     run("stripe-subscription-renewa"),
-    run(renewal.name, ["--seed", "1.5"]),
+    ["run", renewal.name, "--seed", "1.5"],
     run(renewal.name, ["--repeat", "0"]),
     run(renewal.name, ["--repeat-index", "2"]),
     run(renewal.name, ["--timeout-ms", "2147483648"]),
@@ -302,14 +302,21 @@ export async function runCases(h: Harness) {
         assert.equal(server.state.deliveries, 0);
       },
     );
-  for (const allow of [undefined, "*.example.com", "https://example.com", "different.example.com"])
+  for (const allow of [
+    undefined,
+    "*.example.invalid",
+    "https://example.invalid",
+    "different.example.invalid",
+  ])
     await h.test(
       `remote target guard (${allow ?? "no authorization"}) runs before hooks`,
       async (t) => {
         await t.configure("stripe", renewal.types, {
           hooks: { beforeEach: "node reset.mjs" },
           providers: {
-            stripe: { target: { url: "https://example.com/hook", secret: "${PC_SANDBOX_SECRET}" } },
+            stripe: {
+              target: { url: "https://example.invalid/hook", secret: "${PC_SANDBOX_SECRET}" },
+            },
           },
         });
         await t.cli(

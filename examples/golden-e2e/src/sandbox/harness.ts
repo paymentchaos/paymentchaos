@@ -1,24 +1,25 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { messages as m } from "./messages.ts";
+import { runCliProcess, SandboxCleanupError } from "./process.ts";
 import { startSandboxServer } from "./server.ts";
 
 const bin = fileURLToPath(new URL("../../../../packages/cli/dist/bin.js", import.meta.url));
 export type CaseContext = Parameters<Parameters<Harness["test"]>[1]>[0];
 export type Harness = Awaited<ReturnType<typeof createHarness>>;
 
-export async function createHarness(root: string) {
+export async function createHarness(root: string, timeoutMs = 20_000) {
   if (!existsSync(bin)) throw new Error(m.missingBuild);
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(join(root, "run-"));
   const secret = `whsec_${randomBytes(32).toString("base64")}`;
+  const secrets = new Set([secret, secret.slice(6)]);
   const redact = (text: string) =>
-    text.replaceAll(secret, "[REDACTED]").replaceAll(secret.slice(6), "[REDACTED]");
+    [...secrets].reduce((value, key) => value.replaceAll(key, "[REDACTED]"), text);
   const server = await startSandboxServer(secret);
   const results: { name: string; pass: boolean; error?: string }[] = [];
   return {
@@ -62,37 +63,24 @@ export async function createHarness(root: string) {
         contains?: string,
         env?: NodeJS.ProcessEnv,
       ) => {
-        const result = await new Promise<{
-          code: number;
-          stdout: string;
-          stderr: string;
-          failed: boolean;
-        }>((resolve) => {
-          execFile(
-            process.execPath,
-            [bin, ...args],
-            {
-              cwd,
-              env: { ...process.env, PC_SANDBOX_SECRET: secret, NO_COLOR: "1", ...env },
-              timeout: 20_000,
-              maxBuffer: 1024 * 1024,
-              encoding: "utf8",
-            },
-            (error, stdout, stderr) =>
-              resolve({
-                code: error && typeof error.code === "number" ? error.code : error ? -1 : 0,
-                stdout,
-                stderr,
-                failed: !!error && typeof error.code !== "number",
-              }),
-          );
-        });
+        const override = env?.PC_SANDBOX_SECRET;
+        if (override) {
+          secrets.add(override);
+          if (override.startsWith("whsec_") && override.length > 6) secrets.add(override.slice(6));
+        }
+        const result = await runCliProcess(
+          bin,
+          args,
+          cwd,
+          { ...process.env, PC_SANDBOX_SECRET: secret, NO_COLOR: "1", ...env },
+          timeoutMs,
+        );
         const output = result.stdout + result.stderr;
         await write(
           `command-${++commands}.log`,
           redact(`node paymentchaos ${args.join(" ")}\nexit: ${result.code}\n${output}`),
         );
-        assert(!output.includes(secret) && !output.includes(secret.slice(6)), m.secretLeak);
+        assert(![...secrets].some((key) => output.includes(key)), m.secretLeak);
         assert(!result.failed, m.timeout);
         assert.equal(result.code, expected, m.exit(expected, result.code));
         if (contains) assert(output.includes(contains), m.output(contains));
@@ -121,6 +109,7 @@ export async function createHarness(root: string) {
         });
         results.push({ name, pass: true });
       } catch (error) {
+        if (error instanceof SandboxCleanupError) throw error;
         results.push({
           name,
           pass: false,
