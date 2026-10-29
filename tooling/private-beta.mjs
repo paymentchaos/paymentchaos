@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -30,6 +30,7 @@ export function pnpm(args) {
 
 export async function packPrivate(outputRoot = join(root, "dist", "private-beta")) {
   pnpm(["--filter", "paymentchaos...", "build"]);
+  const before = run("git", ["status", "--porcelain"]);
   const commit = run("git", ["rev-parse", "HEAD"]).trim();
   const dirty = run("git", ["status", "--porcelain"]).trim() !== "";
   const source = JSON.parse(await readFile(join(root, "packages/cli/package.json"), "utf8"));
@@ -37,6 +38,7 @@ export async function packPrivate(outputRoot = join(root, "dist", "private-beta"
   await mkdir(outputRoot, { recursive: true });
   const output = await mkdtemp(join(resolve(outputRoot), `${version}-`));
   const temporary = await mkdtemp(join(tmpdir(), "paymentchaos-pack-"));
+  const deployed = join(temporary, "deployed");
   const stage = join(temporary, "package");
   try {
     // Hoisting is required: npm's bundler cannot preserve pnpm's symlinked virtual store.
@@ -51,8 +53,13 @@ export async function packPrivate(outputRoot = join(root, "dist", "private-beta"
       "--prefer-offline",
       "--ignore-scripts",
       "--node-linker=hoisted",
-      stage,
+      deployed,
     ]);
+    // On one filesystem pnpm hardlinks deployed files to its store and to the workspace
+    // sources. Editing them in place would rewrite this checkout, and npm pack crashes
+    // ("Exit handler never called") on bundled files that share an inode. A plain copy gives
+    // every file its own inode.
+    await cp(deployed, stage, { recursive: true, verbatimSymlinks: true });
     const manifestPath = join(stage, "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     const workspaceNames = Object.keys(manifest.dependencies).filter((name) =>
@@ -106,6 +113,8 @@ export async function packPrivate(outputRoot = join(root, "dist", "private-beta"
       .update(await readFile(tarball))
       .digest("hex");
     await writeFile(join(output, "SHA256SUMS"), `${sha256}  ${archive.filename}\n`);
+    if (run("git", ["status", "--porcelain"]) !== before)
+      throw new Error(messages.workspaceChanged);
     const result = { ...provenance, tarball, sha256 };
     await writeFile(join(output, "manifest.json"), `${JSON.stringify(result, null, 2)}\n`);
     return result;
