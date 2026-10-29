@@ -224,6 +224,12 @@ importers:
       paymentchaos:
         specifier: workspace:*
         version: link:../../packages/cli
+      razorpay:
+        specifier: 2.9.6
+        version: 2.9.6(debug@4.4.3)
+      standardwebhooks:
+        specifier: 1.0.0
+        version: 1.0.0
       stripe:
         specifier: 18.5.0
         version: 18.5.0(@types/node@22.20.5)
