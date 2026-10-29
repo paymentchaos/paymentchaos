@@ -134,6 +134,9 @@ export async function runScenario(
   scenario: Scenario,
   options: RunScenarioOptions,
 ): Promise<RunOutcome> {
+  if (scenario.assert?.http !== undefined) {
+    throw new PaymentChaosError("CONFIG_INVALID", messages.httpAssertNotYetSupported());
+  }
   const { adapter } = options;
   const target = scenario.target;
   if (target === undefined)
@@ -272,7 +275,6 @@ export async function runScenario(
   // Counts describe repetitions actually executed, never the unexecuted rest of `repeat`.
   const executed = repeats.length;
   const notes: string[] = [];
-  if (scenario.assert?.http !== undefined) notes.push(messages.httpAssertNotYetSupported());
   if (selected !== undefined)
     notes.push(messages.repeatSelected(selected, repeat, options.stableIds === true));
   if (failed.length > 0 && executed > 1)

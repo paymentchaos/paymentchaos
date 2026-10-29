@@ -111,6 +111,38 @@ const chaos: ChaosOperator[] = [
 ];
 
 describe("runScenario", () => {
+  it.each([false, true])(
+    "rejects HTTP assertions before side effects (command: %s)",
+    async (withCommand) => {
+      server = await startRecordingServer();
+      const marker = join(dir, `http-assert-${String(withCommand)}`);
+      const command = node(
+        writeScript(
+          "http-assert-marker.mjs",
+          `import { writeFileSync } from "node:fs"; writeFileSync(process.argv[2], "ran");`,
+        ),
+        marker,
+      );
+      const events: RunEvent[] = [];
+      const s = scenario(server.url, chaos, {
+        hooks: { beforeEach: command, afterEach: command },
+        assert: {
+          http: { url: server.url, expect: { "$.entitlements": 1 } },
+          ...(withCommand ? { command } : {}),
+        },
+      });
+      await expect(
+        runScenario(s, { adapter, env, onEvent: (event) => events.push(event) }),
+      ).rejects.toMatchObject({
+        code: "CONFIG_INVALID",
+        message: expect.stringContaining("use assert.command"),
+      });
+      expect(existsSync(marker)).toBe(false);
+      expect(server.requests).toHaveLength(0);
+      expect(events).toEqual([]);
+    },
+  );
+
   it("passes a correct app and reports a schema-valid run", async () => {
     server = await startRecordingServer(app(true));
     const events: RunEvent["type"][] = [];

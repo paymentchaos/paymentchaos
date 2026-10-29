@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ExitCode } from "@paymentchaos/core";
@@ -70,6 +70,21 @@ afterEach(async () => {
 });
 
 describe("paymentchaos run exit codes", () => {
+  it("exits 2 without sending or reporting success for an unsupported HTTP assertion", async () => {
+    server = await startRecordingServer();
+    writeProject(server.url);
+    appendFileSync(
+      path.join(dir, "paymentchaos.config.yaml"),
+      `assert:\n  http:\n    url: ${server.url}\n    expect: { '$.entitlements': 1 }\n`,
+    );
+    expect(await run(["run", "stripe-subscription-renewal", "--seed", "1337"])).toBe(
+      ExitCode.Config,
+    );
+    expect(stderr).toContain("use assert.command");
+    expect(stdout).not.toContain("PAYMENTCHAOS PASSED");
+    expect(server.requests).toHaveLength(0);
+  });
+
   it("exits 0 and prints the full report when every check passes", async () => {
     server = await startRecordingServer();
     writeProject(server.url);
