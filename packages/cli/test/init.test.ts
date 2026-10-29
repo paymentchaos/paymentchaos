@@ -98,6 +98,11 @@ describe("init", () => {
     { provider: "unknown" },
     { secretEnv: "${SECRET}" },
     { secretEnv: "" },
+    { secretEnv: "whsec_synthetic_private_key" },
+    { secretEnv: "WHSEC_SYNTHETIC_PRIVATE_KEY" },
+    { secretEnv: "SK_TEST_SYNTHETIC_KEY" },
+    { secretEnv: "RK_TEST_SYNTHETIC_KEY" },
+    { secretEnv: "RZP_TEST_SYNTHETIC_KEY" },
     { target: "invalid" },
     { target: "file:///tmp/webhook" },
     { target: "https://user:password@example.com/webhook" },
@@ -116,6 +121,12 @@ describe("init", () => {
     });
     expect(config().providers?.stripe?.target.url).toBe("https://example.com/hook");
     expect(config()).not.toHaveProperty("allowRemoteTarget");
+  });
+
+  it("accepts a BOM-prefixed manifest and normalizes the endpoint", async () => {
+    writeFileSync(join(dir, "package.json"), '\uFEFF{"dependencies":{"razorpay":"*"}}');
+    await initializeProject(dir, { target: " HTTP://LOCALHOST:3000/hook " });
+    expect(config().providers?.razorpay?.target.url).toBe("http://localhost:3000/hook");
   });
 
   it.each(["invalid json", "null", "[]"])("refuses a malformed manifest: %s", async (body) => {

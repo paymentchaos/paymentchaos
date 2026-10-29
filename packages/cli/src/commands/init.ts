@@ -14,7 +14,7 @@ const providers = {
 async function detect(cwd: string) {
   let pkg: { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> };
   try {
-    pkg = JSON.parse(await readFile(join(cwd, "package.json"), "utf8"));
+    pkg = JSON.parse((await readFile(join(cwd, "package.json"), "utf8")).replace(/^\uFEFF/, ""));
     if (!pkg || typeof pkg !== "object" || Array.isArray(pkg)) throw new Error();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { framework: "", detected: [] };
@@ -47,7 +47,7 @@ export async function initializeProject(
     );
   const selected = providers[provider as keyof typeof providers];
   const secretEnv = options.secretEnv ?? selected.env;
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(secretEnv))
+  if (!/^[A-Z_][A-Z0-9_]*$/.test(secretEnv) || /^(?:whsec|sk|rk|rzp)_/i.test(secretEnv))
     throw new PaymentChaosError("CONFIG_INVALID", m.secretEnvInvalid);
   const target = options.target ?? `http://127.0.0.1:3000/webhooks/${provider}`;
   let url: URL;
@@ -91,13 +91,14 @@ export async function initializeProject(
       config,
       stringify({
         version: 1,
-        providers: { [provider]: { target: { url: target, secret: `\${${secretEnv}}` } } },
+        providers: { [provider]: { target: { url: url.href, secret: `\${${secretEnv}}` } } },
         assert: { command: "node paymentchaos/verify.mjs" },
       }),
     );
   } catch (error) {
-    for (const file of created.reverse()) await unlink(file);
-    if (madeDirectory) await rmdir(directory);
+    // A cleanup failure (for example a Windows file lock) must not hide the typed error.
+    for (const file of created.reverse()) await unlink(file).catch(() => {});
+    if (madeDirectory) await rmdir(directory).catch(() => {});
     throw new PaymentChaosError(
       "CONFIG_INVALID",
       m.writeFailed(cwd, (error as NodeJS.ErrnoException).code ?? "IO_ERROR"),

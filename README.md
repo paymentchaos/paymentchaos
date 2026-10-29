@@ -19,6 +19,8 @@ Observed: 2
 **Private testing prototype.** Stripe, Razorpay and generic HMAC flows work from a local
 checkout. The included demo catches duplicate business records in a naive app and passes
 the corrected app. Nothing is published to npm yet; use the local commands below.
+Reports currently show an `npx paymentchaos` reproduction hint; use the local CLI path
+below instead while the package is unpublished.
 
 ## Try the demo
 

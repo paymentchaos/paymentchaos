@@ -47,11 +47,11 @@ export const initMessages = {
     "Provider: stripe, razorpay or generic-hmac (detect from package.json; otherwise stripe)",
   target: "Your test webhook URL (default http://127.0.0.1:3000/webhooks/<provider>)",
   secretEnv:
-    "Environment variable NAME containing your test signing secret; never the secret itself",
+    "Uppercase environment variable NAME containing your test signing secret; never the secret itself",
   providerAmbiguous:
     "Both Stripe and Razorpay were detected in package.json. Choose --provider stripe or --provider razorpay.",
   secretEnvInvalid:
-    "--secret-env must be an environment variable name such as STRIPE_WEBHOOK_SECRET, never a secret value.",
+    "--secret-env must be an uppercase environment variable name such as STRIPE_WEBHOOK_SECRET. Provider key prefixes are refused. Supply the variable name, never its secret value.",
   targetInvalid:
     "--target must be an HTTP(S) webhook URL without credentials, query parameters or a fragment. Use a local test endpoint such as http://127.0.0.1:3000/webhooks/stripe.",
   argumentsInvalid: "Unknown init argument. Run paymentchaos init --help for supported options.",

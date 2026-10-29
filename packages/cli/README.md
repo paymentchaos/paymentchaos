@@ -38,8 +38,9 @@ node /path/to/paymentchaos/packages/cli/dist/bin.js init --provider stripe --tar
 `init` detects Stripe/Razorpay dependencies and common Node frameworks in `package.json`.
 With no provider dependency it defaults to Stripe; if both are detected, specify
 `--provider`. Non-Node apps can use the same flags. It never installs dependencies or
-runs package scripts. `--secret-env NAME` selects an environment variable name, not a
-secret value. Generic HMAC defaults to the built-in Standard Webhooks scenario.
+runs package scripts. `--secret-env NAME` selects an uppercase environment variable name;
+never paste a secret value into this flag. Known provider key prefixes are refused.
+Generic HMAC defaults to the built-in Standard Webhooks scenario.
 
 The generated `paymentchaos/verify.mjs` **fails until implemented**. Replace it with real
 database or API checks using `PAYMENTCHAOS_IDS_JSON`; configure a reset hook if your
