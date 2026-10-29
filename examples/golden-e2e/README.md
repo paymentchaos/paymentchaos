@@ -16,6 +16,7 @@ subprocess. Example apps are started on ephemeral ports with isolated SQLite fil
 ```bash
 pnpm --filter @paymentchaos/golden-e2e test:e2e
 pnpm --filter @paymentchaos/golden-e2e demo
+pnpm --filter @paymentchaos/golden-e2e sandbox /absolute/path/to/results
 ```
 
 `demo` runs `paymentchaos run stripe-subscription-renewal --seed 1337` against naive
@@ -28,6 +29,25 @@ The CLI runs each example's `verify.ts` assertion command through `/bin/sh` or `
 quotes on Windows, where a path containing `"`, `%` or a line break is refused with an
 error because cmd.exe cannot carry it safely.
 
+## Private sandbox
+
+`sandbox` runs 63 cases against the built CLI the way a new user would: `init` in an empty
+project, every built-in flow for Stripe, Razorpay and generic HMAC, JPY/INR/BHD amounts,
+duplicate side effects that must fail, wrong signing keys, HTTP 400/429/500/302 and slow
+handlers, an unreachable target, hooks, `settle`, false JSON checks, unsupported
+`assert.http`, invalid config, missing secrets, usage errors and the remote-target guard.
+
+A local server verifies every delivery with the provider's official SDK (`stripe`,
+`razorpay`, `standardwebhooks`) and records side effects per event. Each case gets its own
+folder whose name contains a space and non-ASCII characters. The folder keeps the config,
+assertion scripts, redacted command logs and `observations.json`, and the run writes
+`RESULTS.md` and `results.json`. Signing secrets are random per run and never written to
+disk. A case passes when the observed outcome matches the expected one, so deliberately
+broken handlers must fail. `test/sandbox.e2e.test.ts` runs the same matrix in CI.
+
+It does not cover real provider accounts, production databases, email, load, or proof that
+a race cannot happen.
+
 ## Scenarios
 
 | Test | Scenario | What it proves |
@@ -38,6 +58,7 @@ error because cmd.exe cannot carry it safely.
 | `concurrency-race.e2e.test.ts` | Manual concurrent POST | Naive check-then-insert records >1 audited transition |
 | `raw-body.e2e.test.ts` | Unicode fixture bytes | Correct app verifies raw bytes; naive rejects valid signatures |
 | `cli.e2e.test.ts` | `stripe-subscription-renewal` via the `paymentchaos` CLI | The real CLI exits 1 on naive and 0 on correct |
+| `sandbox.e2e.test.ts` | All built-in flows and custom scenarios via the CLI | The 63-case private sandbox matrix matches every expected outcome |
 | `shell-quote.test.ts` | — | POSIX and cmd.exe quoting of the assertion command, on any OS |
 
 ## Assertion environment
