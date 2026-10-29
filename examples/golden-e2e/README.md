@@ -47,7 +47,9 @@ broken handlers must fail. `test/sandbox.e2e.test.ts` runs the same matrix in CI
 
 Each CLI invocation has a 20-second limit. On timeout the harness terminates its child
 process tree, including assertion and hook commands, before starting another case. This
-uses `ps` on Linux/macOS and `taskkill` on Windows. If cleanup fails, the matrix stops.
+freezes the CLI and its descendants before termination on Linux/macOS, so assertion
+settling and after-hooks cannot start another process during cleanup. It uses `ps` on
+Linux/macOS and `taskkill` on Windows. If cleanup fails, the matrix stops.
 
 It does not cover real provider accounts, production databases, email, load, or proof that
 a race cannot happen.

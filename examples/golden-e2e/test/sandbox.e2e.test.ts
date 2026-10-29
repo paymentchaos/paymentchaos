@@ -7,6 +7,19 @@ import { createHarness } from "../src/sandbox/harness.ts";
 import { messages } from "../src/sandbox/messages.ts";
 import { runSandbox } from "../src/sandbox/run.ts";
 
+function isRunning(pid: number) {
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return false;
+  }
+  if (process.platform === "win32") return true;
+  const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
+  if (state.error) throw state.error;
+  // Killed grandchildren may remain as inert zombies until the OS reaps them.
+  return state.status === 0 && !state.stdout.trim().startsWith("Z");
+}
+
 it("passes the private sandbox matrix against the built CLI", async () => {
   const root = await mkdtemp(join(tmpdir(), "paymentchaos-sandbox-"));
   try {
@@ -63,7 +76,7 @@ setInterval(() => {}, 1000);
     pids = JSON.parse(await readFile(join(harness.directory, "01 café app", "pids.json"), "utf8"));
     expect(harness.results[0]?.pass).toBe(false);
     expect(pids).toHaveLength(2);
-    for (const pid of pids) expect(() => process.kill(pid, 0)).toThrow();
+    for (const pid of pids) expect(isRunning(pid)).toBe(false);
     await harness.test("still usable after timeout", async (t) => {
       await t.cli(["flows"], 0, "Lifecycle packs");
     });
@@ -80,3 +93,56 @@ setInterval(() => {}, 1000);
     await rm(root, { recursive: true, force: true });
   }
 }, 20_000);
+
+import { spawnSync } from "node:child_process";
+
+it.each(["afterEach", "settle"])(
+  "prevents %s from launching a process during cleanup",
+  async (mode) => {
+    const root = await mkdtemp(join(tmpdir(), "paymentchaos-sandbox-cleanup-race-"));
+    const harness = await createHarness(root, 5000);
+    const pidFile = join(harness.directory, "01 café app", "pids.txt");
+    const records = async () => (await readFile(pidFile, "utf8")).trim().split("\n").map(Number);
+    try {
+      await harness.test(`cleanup with ${mode}`, async (t) => {
+        await t.configure(
+          "stripe",
+          ["invoice.paid", "customer.subscription.updated"],
+          mode === "afterEach"
+            ? { hooks: { afterEach: "node hook.mjs" } }
+            : {
+                assert: { command: "node verify.mjs", settle: { timeoutMs: 60000, intervalMs: 1 } },
+              },
+        );
+        const hang = `import { appendFileSync } from 'node:fs';
+appendFileSync('pids.txt', process.pid + '\\n');
+setInterval(() => {}, 1000);
+`;
+        await t.write("verify.mjs", hang);
+        await t.write("hook.mjs", hang);
+        await t.cli(["run", "stripe-subscription-renewal", "--seed", "1337"], 0);
+      });
+      expect(harness.results[0]?.pass).toBe(false);
+      const pids = await records();
+      if (process.platform === "win32") expect(pids.length).toBeGreaterThanOrEqual(1);
+      else expect(pids).toHaveLength(1);
+      expect(pids.every((pid) => !isRunning(pid))).toBe(true);
+      await harness.test("next case", async (t) => {
+        await t.cli(["flows"], 0);
+      });
+      expect(harness.results[1]?.pass).toBe(true);
+      expect(await records()).toEqual(pids);
+    } finally {
+      for (const pid of await records().catch(() => [])) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          /* Already exited. */
+        }
+      }
+      await harness.finish();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  20_000,
+);

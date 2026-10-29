@@ -28,29 +28,59 @@ async function processTable() {
 /** Core commands use separate POSIX process groups, so killing only the CLI misses them. */
 async function terminateTree(pid: number) {
   if (process.platform === "win32") {
-    await exec("taskkill", ["/pid", String(pid), "/T", "/F"], {
-      windowsHide: true,
-      timeout: 5000,
-    });
+    try {
+      await exec("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        windowsHide: true,
+        timeout: 5000,
+      });
+    } catch (error) {
+      try {
+        process.kill(pid, 0);
+      } catch (probe) {
+        if ((probe as NodeJS.ErrnoException).code === "ESRCH") return;
+      }
+      throw error;
+    }
     return;
   }
-  const table = await processTable();
-  const descendants = (parent: number): number[] =>
-    table
-      .filter((row) => row.parent === parent)
-      .flatMap((row) => [...descendants(row.pid), row.pid]);
-  // Leaves first lets their still-running parents reap them before those parents exit.
-  for (const target of [...descendants(pid), pid]) {
+  const signal = (target: number, value: NodeJS.Signals) => {
     try {
-      process.kill(target, "SIGKILL");
+      process.kill(target, value);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
     }
+  };
+  const stopped = new Set<number>();
+  const stop = (target: number) => {
+    signal(target, "SIGSTOP");
+    stopped.add(target);
+  };
+  try {
+    // Freeze the CLI before a killed assertion can trigger settle or afterEach.
+    stop(pid);
     for (let attempt = 0; ; attempt++) {
-      if (!(await processTable()).some((row) => row.pid === target && !row.zombie)) break;
+      const table = await processTable();
+      const before = stopped.size;
+      const queue = [...stopped];
+      for (const parent of queue) {
+        for (const row of table) {
+          if (row.parent !== parent || stopped.has(row.pid)) continue;
+          stop(row.pid);
+          queue.push(row.pid);
+        }
+      }
+      // A child may fork between the snapshot and SIGSTOP. Rescan until stable.
+      if (stopped.size === before) break;
       if (attempt === 20) throw new Error(messages.cleanupFailed);
-      await sleep(25);
     }
+  } finally {
+    for (const target of [...stopped].reverse()) signal(target, "SIGKILL");
+  }
+  for (let attempt = 0; ; attempt++) {
+    const table = await processTable();
+    if (!table.some((row) => stopped.has(row.pid) && !row.zombie)) break;
+    if (attempt === 200) throw new Error(messages.cleanupFailed);
+    await sleep(25);
   }
 }
 
