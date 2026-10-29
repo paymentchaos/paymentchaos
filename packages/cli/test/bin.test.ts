@@ -51,12 +51,12 @@ describe("paymentchaos bin", () => {
   });
 
   it("prints help even when NODE_ENV=test silences citty's logger", () => {
-    const top = runBin(["--help"], { env: { NODE_ENV: "test" } });
+    const top = runBin(["--help"], { env: { NODE_ENV: "test", NO_COLOR: "1" } });
     expect(top.status).toBe(ExitCode.Ok);
     expect(top.stdout).toContain("USAGE paymentchaos");
-    const init = runBin(["init", "--help"], { env: { NODE_ENV: "test" } });
+    const init = runBin(["init", "--help"], { env: { NODE_ENV: "test", NO_COLOR: "1" } });
     expect(init.stdout).toContain("--secret-env");
-    const usageError = runBin(["bogus"], { env: { NODE_ENV: "test" } });
+    const usageError = runBin(["bogus"], { env: { NODE_ENV: "test", NO_COLOR: "1" } });
     expect(usageError.status).toBe(ExitCode.Config);
     expect(usageError.stdout).toContain("USAGE paymentchaos init|run|plan|flows");
   });
