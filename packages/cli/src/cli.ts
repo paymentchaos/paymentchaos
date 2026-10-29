@@ -1,4 +1,4 @@
-import { type CommandDef, defineCommand, runCommand, showUsage } from "citty";
+import { type CommandDef, defineCommand, renderUsage, runCommand } from "citty";
 import { createFlowsCommand } from "./commands/flows.ts";
 import { createInitCommand } from "./commands/init.ts";
 import { createPlanCommand } from "./commands/plan.ts";
@@ -27,6 +27,16 @@ function usageTarget(argv: readonly string[]): [CommandDef, CommandDef | undefin
   return sub === undefined ? [main, undefined] : [sub, main];
 }
 
+/**
+ * citty's showUsage prints through consola, which goes silent when NODE_ENV=test, so
+ * `--help` printed nothing inside many CI and test setups. Write the rendered text directly,
+ * dropping the backticks that consola would otherwise have turned into highlighting.
+ */
+async function printUsage(cmd: CommandDef, parent: CommandDef | undefined): Promise<void> {
+  const usage = await renderUsage(cmd, parent);
+  process.stdout.write(`${usage.replaceAll("`", "")}\n\n`);
+}
+
 /** citty's argument errors (unknown command, missing required argument) are usage errors. */
 function isUsageError(error: unknown): boolean {
   return error instanceof Error && error.name === "CLIError";
@@ -41,13 +51,13 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   try {
     // citty's runMain swallows errors and exits 1, so call runCommand and map errors here.
     if (argv.includes("--help") || argv.includes("-h")) {
-      await showUsage(...usageTarget(argv));
+      await printUsage(...usageTarget(argv));
       return;
     }
     await runCommand(main, { rawArgs: normalizeSeedArgs(argv) });
   } catch (error) {
     if (isUsageError(error)) {
-      await showUsage(...usageTarget(argv));
+      await printUsage(...usageTarget(argv));
     }
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = isUsageError(error) ? ExitCode.Config : exitCodeFor(error);
