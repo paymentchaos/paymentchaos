@@ -4,6 +4,7 @@ import { createInitCommand } from "./commands/init.ts";
 import { createPlanCommand } from "./commands/plan.ts";
 import { createRunCommand } from "./commands/run.ts";
 import { ExitCode, exitCodeFor } from "./exit.ts";
+import { normalizeSeedArgs } from "./flags.ts";
 
 const main = defineCommand({
   meta: {
@@ -43,7 +44,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       await showUsage(...usageTarget(argv));
       return;
     }
-    await runCommand(main, { rawArgs: [...argv] });
+    await runCommand(main, { rawArgs: normalizeSeedArgs(argv) });
   } catch (error) {
     if (isUsageError(error)) {
       await showUsage(...usageTarget(argv));

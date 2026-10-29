@@ -4,6 +4,19 @@ import { messages } from "./messages.ts";
 const POSITIVE_INT = /^(?:0|[1-9]\d*)$/;
 const SIGNED_INT = /^-?(?:0|[1-9]\d*)$/;
 
+/** citty treats a separate negative value as a flag; keep signed seed values attached. */
+export function normalizeSeedArgs(argv: readonly string[]): string[] {
+  const args = [...argv];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--") break;
+    const next = args[i + 1];
+    if (args[i] === "--seed" && next !== undefined && /^-\d+$/.test(next)) {
+      args.splice(i, 2, `--seed=${next}`);
+    }
+  }
+  return args;
+}
+
 function flagString(value: unknown): string | undefined {
   if (value === undefined || value === null) {
     return undefined;

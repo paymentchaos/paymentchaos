@@ -29,6 +29,15 @@ beforeAll(async () => {
 });
 
 describe("paymentchaos bin", () => {
+  it("accepts a separate negative seed exactly like the equals form", () => {
+    const separate = runBin(["plan", "stripe-subscription-renewal", "--seed", "-1"]);
+    const attached = runBin(["plan", "stripe-subscription-renewal", "--seed=-1"]);
+    expect(separate.status).toBe(ExitCode.Ok);
+    expect(separate.stdout).toContain("seed -1");
+    expect(separate.stdout).toBe(attached.stdout);
+    expect(attached.status).toBe(ExitCode.Ok);
+  });
+
   it("exits 2 when run is invoked without scenarios", () => {
     const result = runBin(["run"]);
     expect(result.status).toBe(ExitCode.Config);

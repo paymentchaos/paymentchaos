@@ -25,6 +25,7 @@ node packages/cli/dist/bin.js run --help
 ```
 
 Stripe, Razorpay and generic HMAC adapters ship as static CLI dependencies.
+`run` and `plan` accept safe signed integer seeds, including `--seed -1`.
 `paymentchaos flows` lists all three providers.
 
 ## Project config
