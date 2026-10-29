@@ -40,13 +40,15 @@ export async function packPrivate(outputRoot = join(root, "dist", "private-beta"
   const stage = join(temporary, "package");
   try {
     // Hoisting is required: npm's bundler cannot preserve pnpm's symlinked virtual store.
+    // --prefer-offline, not --offline: a frozen-lockfile install does not always leave registry
+    // metadata in pnpm's cache (fresh CI runners). The archive's own install below stays offline.
     pnpm([
       "--filter",
       "paymentchaos",
       "deploy",
       "--prod",
       "--legacy",
-      "--offline",
+      "--prefer-offline",
       "--ignore-scripts",
       "--node-linker=hoisted",
       stage,
