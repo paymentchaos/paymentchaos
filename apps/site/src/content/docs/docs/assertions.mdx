@@ -8,7 +8,7 @@ PaymentChaos runs a command after delivery so any application stack can inspect 
 own database, API, or domain model.
 
 HTTP assertions (`assert.http`) are planned for a later release. Configuring one currently
-exits with a configuration error before any hooks or webhooks run, even if a command
+exits with a configuration error before hooks or webhooks run for that scenario, even if a command
 assertion is also present. Use `assert.command` for application-state checks.
 
 ```yaml

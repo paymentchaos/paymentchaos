@@ -1,5 +1,6 @@
 import { type CommandDef, defineCommand, runCommand, showUsage } from "citty";
 import { createFlowsCommand } from "./commands/flows.ts";
+import { createInitCommand } from "./commands/init.ts";
 import { createPlanCommand } from "./commands/plan.ts";
 import { createRunCommand } from "./commands/run.ts";
 import { ExitCode, exitCodeFor } from "./exit.ts";
@@ -10,6 +11,7 @@ const main = defineCommand({
     description: "Deterministic failure testing for payment and subscription integrations.",
   },
   subCommands: {
+    init: createInitCommand(),
     run: createRunCommand(),
     plan: createPlanCommand(),
     flows: createFlowsCommand(),
