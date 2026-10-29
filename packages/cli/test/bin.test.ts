@@ -29,6 +29,27 @@ beforeAll(async () => {
 });
 
 describe("paymentchaos bin", () => {
+  it("accepts a separate negative seed exactly like the equals form", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "paymentchaos-negative-seed-"));
+    try {
+      writeFileSync(
+        path.join(cwd, "paymentchaos.config.yaml"),
+        stringify({
+          version: 1,
+          providers: { stripe: { target: { url: "http://127.0.0.1:9/webhook" } } },
+        }),
+      );
+      const separate = runBin(["plan", "stripe-subscription-renewal", "--seed", "-1"], { cwd });
+      const attached = runBin(["plan", "stripe-subscription-renewal", "--seed=-1"], { cwd });
+      expect(separate.status, separate.stderr).toBe(ExitCode.Ok);
+      expect(separate.stdout).toContain("seed -1");
+      expect(separate.stdout).toBe(attached.stdout);
+      expect(attached.status).toBe(ExitCode.Ok);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("exits 2 when run is invoked without scenarios", () => {
     const result = runBin(["run"]);
     expect(result.status).toBe(ExitCode.Config);
