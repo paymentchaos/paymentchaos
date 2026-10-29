@@ -29,6 +29,24 @@ Stripe, Razorpay and generic HMAC adapters ship as static CLI dependencies.
 
 ## Project config
 
+From your app's directory, use the absolute path to the built CLI:
+
+```bash
+node /path/to/paymentchaos/packages/cli/dist/bin.js init --provider stripe --target http://127.0.0.1:3000/webhooks/stripe
+```
+
+`init` detects Stripe/Razorpay dependencies and common Node frameworks in `package.json`.
+With no provider dependency it defaults to Stripe; if both are detected, specify
+`--provider`. Non-Node apps can use the same flags. It never installs dependencies or
+runs package scripts. `--secret-env NAME` selects an environment variable name, not a
+secret value. Generic HMAC defaults to the built-in Standard Webhooks scenario.
+
+The generated `paymentchaos/verify.mjs` **fails until implemented**. Replace it with real
+database or API checks using `PAYMENTCHAOS_IDS_JSON`; configure a reset hook if your
+test requires one. Init sends no requests. Existing config files, scaffold directories,
+and symlinks are refused. Remote targets require `--allow-remote-target <host>` during
+initialization and again during `run`; permission is never saved in the config.
+
 Create `paymentchaos.config.yaml` at the project root with per-provider webhook targets:
 
 ```yaml

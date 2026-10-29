@@ -16,7 +16,51 @@ Observed: 2
 
 ## Status
 
-**Pre-alpha. Not usable yet.** The first milestone (a thin prototype covering Stripe, Razorpay and generic HMAC webhooks) is under active development. Nothing is published to npm yet.
+**Private testing prototype.** Stripe, Razorpay and generic HMAC flows work from a local
+checkout. The included demo catches duplicate business records in a naive app and passes
+the corrected app. Nothing is published to npm yet; use the local commands below.
+
+## Try the demo
+
+From this checkout, with the required tool versions installed:
+
+```bash
+corepack enable pnpm
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --filter @paymentchaos/golden-e2e demo
+```
+
+The first app deliberately fails with duplicate entitlement and ledger records. The
+corrected app passes. The demo starts isolated local apps and shuts them down afterward;
+it does not charge real payments.
+
+## Connect your app
+
+From your application's development or staging checkout, invoke the built CLI using
+the absolute path to this repository (replace `/path/to/paymentchaos`):
+
+```bash
+node /path/to/paymentchaos/packages/cli/dist/bin.js init --provider stripe --target http://127.0.0.1:3000/webhooks/stripe
+```
+
+This creates `paymentchaos.config.yaml` and `paymentchaos/verify.mjs`. Set the configured
+signing-secret environment variable to your test app's secret, replace the deliberately
+failing assertion starter with checks against your app's state, and start your app. Then:
+
+```bash
+node /path/to/paymentchaos/packages/cli/dist/bin.js run stripe-subscription-renewal --seed 1337
+```
+
+Choose `--provider razorpay` or `--provider generic-hmac` for those integrations. Run
+`init --help` for options. Initialization never overwrites existing config or scaffold
+directories and does not send webhooks. See the [CLI guide](packages/cli/README.md) and
+[state assertion guide](apps/site/src/content/docs/docs/assertions.mdx).
+
+The current prototype supports command-based assertions and terminal reports. HTTP
+assertions are rejected until implemented; JSON/JUnit/HTML reporting is planned. Generated
+provider IDs are synthetic, so apps that fetch provider objects may need test API mocks.
+A passing concurrency run does not prove the absence of every race.
 
 ## Required versions
 
