@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -37,7 +37,9 @@ export async function packPrivate(outputRoot = join(root, "dist", "private-beta"
   const version = `${source.version}-private.g${commit.slice(0, 12)}${dirty ? ".dirty" : ""}`;
   await mkdir(outputRoot, { recursive: true });
   const output = await mkdtemp(join(resolve(outputRoot), `${version}-`));
-  const temporary = await mkdtemp(join(tmpdir(), "paymentchaos-pack-"));
+  // macOS temp paths traverse /var -> /private/var. npm's bundle walker drops
+  // dependencies when its package root and resolved dependency paths disagree.
+  const temporary = await realpath(await mkdtemp(join(tmpdir(), "paymentchaos-pack-")));
   const deployed = join(temporary, "deployed");
   const stage = join(temporary, "package");
   try {

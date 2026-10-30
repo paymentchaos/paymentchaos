@@ -55,6 +55,9 @@ to another machine with Node >= 22.12. `pnpm test:private-package` installs it o
 a fresh folder and runs the 63-case sandbox against it. CI runs that check on Linux and
 Windows.
 
+The installed-package check also exercises symlinked temporary directories, matching
+the default macOS layout, so the archive retains its bundled dependencies there.
+
 ## Connect your app
 
 From your application's development or staging checkout, run `paymentchaos` if you

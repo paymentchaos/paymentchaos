@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runSandbox } from "../examples/golden-e2e/src/sandbox/run.ts";
@@ -8,7 +8,15 @@ import { packPrivate, pnpm, run } from "./private-beta.mjs";
 import { messages } from "./private-beta-messages.mjs";
 
 const scratch = await mkdtemp(join(tmpdir(), "paymentchaos-private-install-"));
+const tempVariable = process.platform === "win32" ? "TEMP" : "TMPDIR";
+const originalTemp = process.env[tempVariable];
 try {
+  // Exercise macOS's symlinked temp-directory layout on every CI platform.
+  const realTemp = join(scratch, "real-temp");
+  const linkedTemp = join(scratch, "linked-temp");
+  await mkdir(realTemp);
+  await symlink(realTemp, linkedTemp, process.platform === "win32" ? "junction" : "dir");
+  process.env[tempVariable] = linkedTemp;
   const { tarball, version } = await packPrivate(join(scratch, "archives"));
   const prefix = join(scratch, "installed café tool");
   // Empty cache plus offline mode proves the archive supplies every runtime dependency.
@@ -53,5 +61,7 @@ try {
   );
   console.log(messages.installed(results.length));
 } finally {
+  if (originalTemp === undefined) delete process.env[tempVariable];
+  else process.env[tempVariable] = originalTemp;
   await rm(scratch, { recursive: true, force: true });
 }
