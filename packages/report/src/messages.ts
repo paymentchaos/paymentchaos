@@ -21,6 +21,8 @@ export const messages = {
   expected: (value: string) => `    expected: ${value}`,
   observed: (value: string) => `    observed: ${value}`,
   reproduce: (cmd: string) => `reproduce: ${cmd}`,
+  reproduceWindowsShell:
+    "Run this command in Command Prompt (cmd.exe). From PowerShell, enter cmd.exe first; enter exit afterward to return.",
   reproduceUnavailable:
     "Re-run the same scenario and seed manually: this path cannot be safely quoted for the shell.",
   ellipsis: "…",

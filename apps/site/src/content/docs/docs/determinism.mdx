@@ -52,7 +52,10 @@ reproduce: /usr/local/bin/node /work/paymentchaos/packages/cli/dist/bin.js run s
 Run it from the same app directory. When the run had more than one repetition, it also
 adds `--repeat` and the failed `--repeat-index`. It keeps `--stable-ids`, `--timeout-ms`
 and `--allow-remote-target` if you used them. Secrets are never part of the command; they
-still come from your environment. On Windows, if a path contains `"`, `%` or `!`, the report
+still come from your environment. On Windows, the printed command uses Command Prompt
+(`cmd.exe`) syntax. From PowerShell, enter `cmd.exe`, paste the command, then enter `exit`
+to return to PowerShell. Stay in the same app directory and keep the signing-secret
+environment variable set. If a Windows path contains `"`, `%` or `!`, the report
 asks you to rerun the same scenario and seed yourself, because `cmd.exe` cannot quote those
 safely.
 
