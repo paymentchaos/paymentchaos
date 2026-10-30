@@ -6,9 +6,14 @@ import { createRunCommand } from "./commands/run.ts";
 import { ExitCode, exitCodeFor } from "./exit.ts";
 import { normalizeSeedArgs } from "./flags.ts";
 
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
 const main = defineCommand({
   meta: {
     name: "paymentchaos",
+    version,
     description: "Deterministic failure testing for payment and subscription integrations.",
   },
   subCommands: {
@@ -49,6 +54,10 @@ function isUsageError(error: unknown): boolean {
  */
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   try {
+    if (argv.length === 1 && argv[0] === "--version") {
+      console.log(version);
+      return;
+    }
     // citty's runMain swallows errors and exits 1, so call runCommand and map errors here.
     if (argv.includes("--help") || argv.includes("-h")) {
       await printUsage(...usageTarget(argv));
@@ -63,3 +72,5 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     process.exitCode = isUsageError(error) ? ExitCode.Config : exitCodeFor(error);
   }
 }
+
+import { readFileSync } from "node:fs";

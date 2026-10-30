@@ -19,8 +19,8 @@ Observed: 2
 **Private testing prototype.** Stripe, Razorpay and generic HMAC flows work from a local
 checkout. The included demo catches duplicate business records in a naive app and passes
 the corrected app. Nothing is published to npm yet; use the local commands below.
-Reports currently show an `npx paymentchaos` reproduction hint; use the local CLI path
-below instead while the package is unpublished.
+Failure reports print a reproduction command using the Node executable and CLI copy
+that ran, so copying it does not fetch a package from npm. Run it from the same app directory.
 
 ## Try the demo
 
@@ -37,10 +37,29 @@ The first app deliberately fails with duplicate entitlement and ledger records. 
 corrected app passes. The demo starts isolated local apps and shuts them down afterward;
 it does not charge real payments.
 
+## Install the private beta
+
+To use PaymentChaos from any project without this checkout, build a private archive.
+It bundles every runtime dependency, so it installs offline and never fetches an
+unpublished package:
+
+```bash
+pnpm pack:private
+npm install --global ./dist/private-beta/<version>-*/paymentchaos-<version>.tgz
+paymentchaos --version
+```
+
+The command prints the archive path, its SHA-256 and the commit it was built from. That
+information is also saved in `manifest.json` next to the archive. You can copy the archive
+to another machine with Node >= 22.12. `pnpm test:private-package` installs it offline into
+a fresh folder and runs the 63-case sandbox against it. CI runs that check on Linux and
+Windows.
+
 ## Connect your app
 
-From your application's development or staging checkout, invoke the built CLI using
-the absolute path to this repository (replace `/path/to/paymentchaos`):
+From your application's development or staging checkout, run `paymentchaos` if you
+installed the private beta. Otherwise, invoke the built CLI using the absolute path to
+this repository (replace `/path/to/paymentchaos`):
 
 ```bash
 node /path/to/paymentchaos/packages/cli/dist/bin.js init --provider stripe --target http://127.0.0.1:3000/webhooks/stripe

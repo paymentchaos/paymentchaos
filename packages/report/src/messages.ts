@@ -21,6 +21,8 @@ export const messages = {
   expected: (value: string) => `    expected: ${value}`,
   observed: (value: string) => `    observed: ${value}`,
   reproduce: (cmd: string) => `reproduce: ${cmd}`,
+  reproduceUnavailable:
+    "Re-run the same scenario and seed manually: this path cannot be safely quoted for the shell.",
   ellipsis: "…",
   repeatFailed: (index: number, total: number) => `repeat ${index}/${total} failed`,
   repeatSelectedFailed: (index: number, total: number) =>

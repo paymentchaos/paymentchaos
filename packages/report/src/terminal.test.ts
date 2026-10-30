@@ -71,7 +71,7 @@ describe("renderTerminalReport", () => {
           expected: 1
           observed: 2
 
-      reproduce: npx paymentchaos run renewal.yaml --seed 1337 --repeat 20 --repeat-index 4
+      reproduce: paymentchaos run renewal.yaml --seed 1337 --repeat 20 --repeat-index 4
 
       PAYMENTCHAOS FAILED  seed=1337  plan=7f3a…  repeat 4/20 failed
       "
@@ -105,7 +105,7 @@ describe("renderTerminalReport", () => {
           expected: 1
           observed: 5
 
-      reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337
+      reproduce: paymentchaos run stripe-subscription-renewal --seed 1337
 
       Notes
         a caveat
@@ -123,9 +123,7 @@ describe("renderTerminalReport", () => {
       failedRepeatIndex: 1,
       color: false,
     });
-    expect(text).toContain(
-      "reproduce: npx paymentchaos run stripe-subscription-renewal --seed 1337\n",
-    );
+    expect(text).toContain("reproduce: paymentchaos run stripe-subscription-renewal --seed 1337\n");
     expect(text).not.toContain("--repeat");
     expect(text).toMatch(/PAYMENTCHAOS FAILED {2}seed=1337 {2}plan=7f3a…\n$/);
   });

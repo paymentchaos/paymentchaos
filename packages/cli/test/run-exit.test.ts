@@ -100,7 +100,9 @@ describe("paymentchaos run exit codes", () => {
     expect(await run(["run", "paymentchaos/scenarios/tiny.yaml", "--seed", "1"])).toBe(
       ExitCode.AssertionFailed,
     );
-    expect(stdout).toContain("reproduce: npx paymentchaos run");
+    expect(stdout).toContain("reproduce: ");
+    expect(stdout).toContain("bin.js");
+    expect(stdout).not.toContain("npx");
     expect(stdout).toMatch(/PAYMENTCHAOS FAILED {2}seed=1 {2}plan=\S+\n$/);
   });
 
