@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { RunReport } from "@paymentchaos/core";
 import { describe, expect, it } from "vitest";
 import { normalizeTerminalOutput } from "./normalize.ts";
@@ -54,6 +58,49 @@ const singleRunFailure: RunReport = {
 };
 
 describe("renderTerminalReport", () => {
+  it("runs the printed command in its documented shell with literal arguments", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "paymentchaos reproduce café "));
+    try {
+      const script = join(directory, "argv probe.cjs");
+      await writeFile(script, "console.log(JSON.stringify(process.argv.slice(2)))");
+      const scenarioRef = "café & receipts (renewal).yaml";
+      const runArgs = ["--stable-ids", "--timeout-ms", "5000", "--allow-remote-target", "app.test"];
+      const text = renderTerminalReport(failureReport, {
+        cliCommand: [process.execPath, script],
+        runArgs,
+        scenarioRef,
+        failedRepeatIndex: 4,
+        color: false,
+      });
+      if (process.platform === "win32") {
+        expect(text).toContain("Command Prompt (cmd.exe)");
+        expect(text).toContain("From PowerShell, enter cmd.exe first");
+      }
+      const command = text.split("\n").find((line) => line.startsWith("reproduce: "));
+      expect(command).toBeDefined();
+      // Node uses cmd.exe on Windows and /bin/sh on POSIX, matching the report guidance.
+      const result = spawnSync(command?.slice("reproduce: ".length) ?? "", {
+        shell: true,
+        encoding: "utf8",
+        cwd: directory,
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual([
+        "run",
+        scenarioRef,
+        "--seed",
+        "1337",
+        "--repeat",
+        "20",
+        "--repeat-index",
+        "4",
+        ...runArgs,
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("matches the BUILD_PROMPT §13 failure snapshot (timings normalized)", () => {
     const text = renderTerminalReport(failureReport, {
       scenarioRef: "renewal.yaml",

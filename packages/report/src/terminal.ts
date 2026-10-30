@@ -159,6 +159,9 @@ export function renderTerminalReport(report: RunReport, options: TerminalRenderO
       options.failedRepeatIndex,
       options,
     );
+    if (command !== undefined && process.platform === "win32" && options.cliCommand !== undefined) {
+      out.push(messages.reproduceWindowsShell);
+    }
     out.push(command === undefined ? messages.reproduceUnavailable : messages.reproduce(command));
   }
 
