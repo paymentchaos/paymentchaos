@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "demo": "node --experimental-sqlite --import tsx src/demo.ts",
+    "demo:ci": "node --experimental-sqlite --import tsx src/ci-demo.ts",
     "sandbox": "node --import tsx src/sandbox/main.ts",
     "test:e2e": "node --experimental-sqlite --import tsx ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
