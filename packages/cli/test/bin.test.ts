@@ -1,11 +1,12 @@
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ExitCode } from "@paymentchaos/core";
+import { ExitCode, runReportSchema } from "@paymentchaos/core";
+import { startRecordingServer } from "@paymentchaos/core/testing";
 import { validateWebhookSignature } from "razorpay/dist/utils/razorpay-utils.js";
 import { Webhook } from "standardwebhooks";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -155,22 +156,28 @@ flow: subscription-renewal
 // Share the build above: these async CLI tests must not race another file rebuilding dist.
 const secret = `whsec_${Buffer.alloc(32, 7).toString("base64")}`;
 function runProviderBin(args: string[], cwd: string) {
-  return new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, [binJs, ...args], {
-      cwd,
-      env: { ...process.env, PAYMENTCHAOS_TEST_SECRET: secret, NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let output = "";
-    child.stdout.on("data", (chunk) => {
-      output += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      output += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, output }));
-  });
+  return new Promise<{ code: number | null; output: string; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn(process.execPath, [binJs, ...args], {
+        cwd,
+        env: { ...process.env, PAYMENTCHAOS_TEST_SECRET: secret, NO_COLOR: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let output = "";
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => {
+        output += chunk;
+        stdout += chunk;
+      });
+      child.stderr.on("data", (chunk) => {
+        output += chunk;
+        stderr += chunk;
+      });
+      child.on("error", reject);
+      child.on("close", (code) => resolve({ code, output, stdout, stderr }));
+    },
+  );
 }
 
 describe("built-in provider CLI integration", () => {
@@ -276,4 +283,97 @@ describe("built-in provider CLI integration", () => {
       expect.objectContaining({ code: "CONFIG_INVALID" }),
     );
   });
+});
+
+// Exercise the built entry point: stdout must remain parseable even when checks fail.
+describe("machine reports from the built CLI entry point", () => {
+  it.each(["json", "junit"])(
+    "writes complete %s reports for multiple scenarios, preserving exits and redaction",
+    async (reporter) => {
+      const cwd = await mkdtemp(path.join(tmpdir(), "paymentchaos reports café "));
+      const server = await startRecordingServer();
+      try {
+        await writeFile(
+          path.join(cwd, "paymentchaos.config.yaml"),
+          stringify({
+            version: 1,
+            providers: {
+              stripe: { target: { url: server.url, secret: "${PAYMENTCHAOS_TEST_SECRET}" } },
+            },
+          }),
+        );
+        await writeFile(
+          path.join(cwd, "verify.cjs"),
+          `console.log(JSON.stringify({checks:[{name:"余额 & balance",pass:false,expected:1,observed:{count:2,token:${JSON.stringify(secret)}}}]}));process.exitCode=1;`,
+        );
+        for (const name of ["good", "bad"]) {
+          await writeFile(
+            path.join(cwd, `${name}.yaml`),
+            stringify({
+              version: 1,
+              name,
+              provider: "stripe",
+              flow: "subscription-renewal",
+              assert: {
+                command: name === "good" ? 'node -e "process.exit(0)"' : "node verify.cjs",
+              },
+            }),
+          );
+        }
+        const args = ["--reporter", reporter, "--seed", "-1", "--repeat", "2"];
+        const passed = await runProviderBin(["run", "good.yaml", ...args], cwd);
+        expect(passed.code, passed.stderr).toBe(0);
+        const out = "résultats.out";
+        await writeFile(path.join(cwd, out), "old report");
+        const failed = await runProviderBin(
+          ["run", "good.yaml", "bad.yaml", ...args, "--out", out],
+          cwd,
+        );
+        expect(failed.code, failed.stderr).toBe(1);
+        expect(failed.stderr).toBe("");
+        expect(failed.stdout).not.toContain(secret);
+        expect(failed.stdout).toContain("[REDACTED]");
+        expect(failed.stdout).not.toContain("PAYMENTCHAOS PASSED");
+        expect(await readFile(path.join(cwd, out), "utf8")).toBe(failed.stdout);
+        if (reporter === "json") {
+          expect(runReportSchema.parse(JSON.parse(passed.stdout))).toMatchObject({
+            status: "passed",
+            repeat: 2,
+            seed: -1,
+          });
+          const reports = (JSON.parse(failed.stdout) as unknown[]).map((report) =>
+            runReportSchema.parse(report),
+          );
+          expect(reports.map((r) => [r.scenario, r.status, r.repeatsFailed])).toEqual([
+            ["good", "passed", 0],
+            ["bad", "failed", 2],
+          ]);
+          expect(reports[1]?.assertions.at(-1)).toMatchObject({
+            observed: { count: 2, token: "[REDACTED]" },
+          });
+        } else {
+          expect(passed.stdout).toContain('<testsuites tests="2" failures="0" errors="0"');
+          expect(failed.stdout).toMatch(/^<\?xml.*<\/testsuites>\n$/s);
+          expect(failed.stdout.match(/<testsuite /g)).toHaveLength(2);
+          expect(failed.stdout).toContain('<testsuites tests="5" failures="2" errors="0"');
+        }
+        const writeFailed = await runProviderBin(
+          ["run", "good.yaml", ...args, "--out", "missing/report.out"],
+          cwd,
+        );
+        expect(writeFailed.code).toBe(2);
+        expect(writeFailed.stderr).toContain("Could not write report");
+        const aborted = await runProviderBin(
+          ["run", "good.yaml", "absent.yaml", ...args, "--out", out],
+          cwd,
+        );
+        expect(aborted.code).toBe(2);
+        expect(aborted.stdout).toBe("");
+        expect(await readFile(path.join(cwd, out), "utf8")).toBe(failed.stdout);
+      } finally {
+        await server.close();
+        await rm(cwd, { recursive: true, force: true });
+      }
+    },
+  );
 });

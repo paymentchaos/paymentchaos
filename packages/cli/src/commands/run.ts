@@ -1,8 +1,8 @@
 import { glob, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PaymentChaosError } from "@paymentchaos/core";
-import { renderTerminalReport } from "@paymentchaos/report";
+import { PaymentChaosError, type RunReport } from "@paymentchaos/core";
+import { renderJsonReport, renderJunitReport, renderTerminalReport } from "@paymentchaos/report";
 import type { CommandDef } from "citty";
 import { createEngine } from "../engine/create-engine.ts";
 import { ExitCode, exitCodeForReport } from "../exit.ts";
@@ -59,7 +59,7 @@ export function createRunCommand(): CommandDef {
       }
 
       const reporter = (ctx.args.reporter as string | undefined) ?? "terminal";
-      if (reporter !== "terminal") {
+      if (!["terminal", "json", "junit"].includes(reporter)) {
         throw new PaymentChaosError("CONFIG_INVALID", messages.reporterUnknown(reporter));
       }
 
@@ -78,6 +78,8 @@ export function createRunCommand(): CommandDef {
       const refs = await expandScenarioArgs(cwd, positional);
 
       let lastExit: ExitCode = ExitCode.Ok;
+      const reports: RunReport[] = [];
+      let output = "";
 
       for (const ref of refs) {
         const resolved = await resolveScenarioRef(cwd, ref);
@@ -101,6 +103,13 @@ export function createRunCommand(): CommandDef {
           ...(stableIds ? { stableIds: true } : {}),
           ...(timeoutMillis !== undefined ? { timeoutMillis } : {}),
         });
+
+        reports.push(outcome.report);
+        const code = exitCodeForReport(outcome.report);
+        if (code !== ExitCode.Ok) {
+          lastExit = code;
+        }
+        if (reporter !== "terminal") continue;
 
         console.log(messages.runSeedLine(outcome.report.seed));
 
@@ -129,13 +138,22 @@ export function createRunCommand(): CommandDef {
         });
 
         process.stdout.write(text);
-        if (outPath !== undefined) {
-          await writeFile(path.resolve(cwd, outPath), text, "utf8");
-        }
+        output += text;
+      }
 
-        const code = exitCodeForReport(outcome.report);
-        if (code !== ExitCode.Ok) {
-          lastExit = code;
+      if (reporter !== "terminal") {
+        output =
+          reporter === "json"
+            ? renderJsonReport(reports.length === 1 && reports[0] ? reports[0] : reports)
+            : renderJunitReport(reports);
+        process.stdout.write(output);
+      }
+      if (outPath !== undefined) {
+        const destination = path.resolve(cwd, outPath);
+        try {
+          await writeFile(destination, output, "utf8");
+        } catch {
+          throw new PaymentChaosError("CONFIG_INVALID", messages.reportWriteFailed(destination));
         }
       }
 

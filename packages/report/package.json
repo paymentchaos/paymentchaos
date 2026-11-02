@@ -1,7 +1,7 @@
 {
   "name": "@paymentchaos/report",
   "version": "0.0.0",
-  "description": "PaymentChaos run reporters (terminal, and later JSON/JUnit/HTML).",
+  "description": "PaymentChaos terminal, JSON and JUnit run reporters.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
