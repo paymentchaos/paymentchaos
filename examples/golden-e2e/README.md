@@ -25,9 +25,12 @@ pnpm --filter @paymentchaos/golden-e2e sandbox /absolute/path/to/results
 report. If `packages/cli/dist/bin.js` is missing it falls back to calling `runScenario`
 directly; set `GOLDEN_E2E_DEMO_ENGINE=core` to choose that path even when the CLI is built.
 
-`demo:ci` requires a built CLI and an absolute `--out` directory. It starts each example on
-a fresh SQLite database, runs `stripe-subscription-renewal` with `--seed 1337` four times
-(JSON and JUnit for naive and correct), and writes:
+`demo:ci` requires a built CLI and exactly `--out /absolute/dir` (a leading `--` is
+accepted; other arguments, `--out=dir` and repeated flags are refused). The directory must
+be new or empty: stale reports are never uploaded and existing files are never deleted. It
+starts each example on a fresh SQLite database for every run, runs
+`stripe-subscription-renewal` with `--seed 1337` four times (JSON and JUnit for naive and
+correct), and writes:
 
 | File | Expected CLI exit | Verdict |
 |---|---|---|
@@ -36,10 +39,12 @@ a fresh SQLite database, runs `stripe-subscription-renewal` with `--seed 1337` f
 | `stripe-express-correct.json` | 0 | JSON `status: passed` |
 | `stripe-express-correct.junit.xml` | 0 | JUnit `failures="0" errors="0"` |
 
-Each run uses an isolated temp config directory; stdout must match the `--out` file. Config,
-unreachable-target and internal CLI errors (exit codes 2–4) fail the demo. Signing secrets
-stay in memory only and must not appear in reports. Each CLI invocation has a 90-second
-limit with the same process-tree cleanup as the private sandbox.
+Each run uses an isolated temp config directory, removed afterwards. CLI stdout must equal
+the `--out` file; stderr (for example Node warnings) is kept separate and only shown in
+diagnostics. Config, unreachable-target and internal CLI errors (exit codes 2–4) fail the
+demo. Signing secrets stay in memory only: stdout and stderr are both checked for them before
+any diagnostic is printed. Each CLI invocation has a 90-second limit with the same
+process-tree cleanup as the private sandbox, reported as a timeout.
 
 The CLI runs each example's `verify.ts` assertion command through `/bin/sh` or `cmd.exe`.
 `src/shell-quote.ts` quotes its arguments for that shell: single quotes on POSIX, double

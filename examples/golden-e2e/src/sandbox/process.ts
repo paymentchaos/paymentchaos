@@ -127,5 +127,5 @@ export async function runCliProcess(
   } catch (error) {
     throw new SandboxCleanupError(error);
   }
-  return { ...result, failed: result.failed || timedOut };
+  return { ...result, failed: result.failed || timedOut, timedOut };
 }
