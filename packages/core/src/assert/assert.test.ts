@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -229,6 +230,51 @@ describe("runCommandAssertion", () => {
         JSON.stringify(secret).slice(1, -1),
       );
     },
+  );
+
+  it.each([false, true])(
+    "bounds processing of 1 MiB escaped logs on both streams (redact=%s)",
+    (redact) => {
+      const secret = "whsec_synthetic/slash";
+      const document = JSON.stringify({
+        checks: [{ name: "after logs", pass: false, observed: secret }],
+      }).replaceAll("/", "\\/");
+      const command = script(
+        `large-logs-${redact}`,
+        `
+      const noise = String.fromCharCode(34, 92).repeat(512 * 1024);
+      for (const stream of [process.stdout, process.stderr]) {
+        stream.write(noise);
+        stream.write(${JSON.stringify(`\r\n${document}\n`)});
+      }
+      process.exitCode = 1;
+    `,
+      );
+      const probe = join(dir, `bounded-redaction-${redact}.mjs`);
+      writeFileSync(
+        probe,
+        `
+      import { runCommandAssertion } from ${JSON.stringify(new URL("./command.ts", import.meta.url).href)};
+      const result = await runCommandAssertion(${JSON.stringify(command)}, {
+        metadata: ${JSON.stringify(metadata)}, redact: ${JSON.stringify(redact ? [secret] : [])}, timeoutMs: 3000,
+      });
+      console.log(JSON.stringify({pass: result.pass, timedOut: result.timedOut, checks: result.checks}));
+    `,
+      );
+      // A separate process bounds even synchronous processing that would defeat a Vitest timeout.
+      const result = spawnSync(process.execPath, ["--experimental-strip-types", probe], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      expect(result.error, result.stderr).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        pass: false,
+        timedOut: false,
+        checks: [{ name: "after logs", pass: false, observed: redact ? "[REDACTED]" : secret }],
+      });
+    },
+    10_000,
   );
 
   it("redacts secrets from captured output", async () => {
