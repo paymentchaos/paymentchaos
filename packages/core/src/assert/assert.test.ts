@@ -183,6 +183,15 @@ describe("runCommandAssertion", () => {
     expect(commandAssertionResults(outcome)[0]?.message).toMatch(/timed out/);
   });
 
+  it("kills a command started after the run was already aborted", async () => {
+    const started = performance.now();
+    const signal = AbortSignal.abort(new Error("interrupted"));
+    await expect(
+      runCommandAssertion(script("late", "setTimeout(() => {}, 60_000)"), { metadata, signal }),
+    ).rejects.toThrow("interrupted");
+    expect(performance.now() - started).toBeLessThan(5000);
+  });
+
   describe("a command that leaves a process in the background", () => {
     // The background child inherits stdout, stays quiet until the command has finished,
     // then floods the pipe: it must neither stall the command nor die of EPIPE.

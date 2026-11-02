@@ -100,6 +100,8 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
     let drain: NodeJS.Timeout | undefined;
     const onAbort = () => killTree(child.pid);
     options.signal?.addEventListener("abort", onAbort, { once: true });
+    // A listener added to an already-aborted signal never fires.
+    if (options.signal?.aborted === true) onAbort();
 
     const finish = () => {
       if (finished) return;
