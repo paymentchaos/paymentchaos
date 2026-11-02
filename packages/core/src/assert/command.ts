@@ -70,14 +70,51 @@ export function parseCommandOutput(stdout: string): {
 
 const tail = (text: string) => (text.length > TAIL_CHARS ? text.slice(-TAIL_CHARS) : text);
 
+function redactCommandText(text: string, secrets: readonly string[]): string {
+  if (!secrets.some((secret) => secret !== "")) return text;
+  // Assertion output is JSON/text, not a signed webhook body. Decode string tokens
+  // before scrubbing so escaped slashes, quotes and Unicode cannot hide known secrets.
+  // Advance monotonically: retrying a failed match at each escaped quote makes
+  // unterminated log lines quadratic and blocks the event loop after the child exits.
+  const parts: string[] = [];
+  let copied = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    if (text[cursor++] !== '"') continue;
+    const start = cursor - 1;
+    while (cursor < text.length) {
+      const character = text[cursor++];
+      if (character === "\r" || character === "\n") break;
+      if (character === "\\") {
+        if (text[cursor] === "\r" || text[cursor] === "\n") break;
+        cursor++;
+      } else if (character === '"') {
+        try {
+          const decoded = JSON.parse(text.slice(start, cursor)) as string;
+          const redacted = redactSecrets(decoded, secrets);
+          if (decoded !== redacted) {
+            parts.push(text.slice(copied, start), JSON.stringify(redacted));
+            copied = cursor;
+          }
+        } catch {
+          // Malformed JSON tokens remain subject to the plain-text redaction below.
+        }
+        break;
+      }
+    }
+  }
+  parts.push(text.slice(copied));
+  return redactSecrets(parts.join(""), secrets);
+}
+
 function outcomeOf(
   command: string,
   run: ShellResult,
   attempts: number,
   redact: readonly string[],
 ): CommandAssertionOutcome {
-  const stdout = redactSecrets(run.stdout, redact);
-  const stderr = redactSecrets(run.spawnError ?? run.stderr, redact);
+  const stdout = redactCommandText(run.stdout, redact);
+  const stderr = redactCommandText(run.spawnError ?? run.stderr, redact);
   const parsed = parseCommandOutput(stdout);
   return {
     command,

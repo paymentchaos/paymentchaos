@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -180,6 +181,101 @@ describe("runCommandAssertion", () => {
     expect(outcome).toMatchObject({ pass: false, timedOut: true });
     expect(commandAssertionResults(outcome)[0]?.message).toMatch(/timed out/);
   });
+
+  it.each(["slash", "unicode"])(
+    "redacts %s-escaped JSON secrets in checks and diagnostic tails",
+    async (encoding) => {
+      const secret = encoding === "slash" ? "whsec_synthetic/slash" : 'synthetic_"\\\nキー🙂';
+      const marker = "[REDACTED]";
+      const doc = {
+        checks: [
+          {
+            name: secret,
+            pass: false,
+            message: `key=${secret}`,
+            expected: { [secret]: [secret, 0, false, null] },
+            observed: secret,
+          },
+        ],
+      };
+      const encoded = JSON.stringify(doc).replace(/"(?:[^"\\]|\\.)*"/g, (token) => {
+        if (encoding === "slash") return token.replaceAll("/", "\\/");
+        const value = JSON.parse(token) as string;
+        return `"${value
+          .split("")
+          .map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
+          .join("")}"`;
+      });
+      const outcome = await runCommandAssertion(
+        script(
+          `escaped-${encoding}`,
+          `console.log("banner"); console.log(${JSON.stringify(encoded)}); console.error(${JSON.stringify(encoded)}); process.exitCode=1;`,
+        ),
+        { metadata, redact: [secret] },
+      );
+      expect(outcome.protocolError).toBeUndefined();
+      expect(outcome.pass).toBe(false);
+      expect(outcome.checks).toEqual([
+        {
+          name: marker,
+          pass: false,
+          message: `key=${marker}`,
+          expected: { [marker]: [marker, 0, false, null] },
+          observed: marker,
+        },
+      ]);
+      expect(parseCommandOutput(outcome.stdoutTail).result?.checks).toEqual(outcome.checks);
+      expect(parseCommandOutput(outcome.stderrTail).result?.checks).toEqual(outcome.checks);
+      expect(JSON.stringify(commandAssertionResults(outcome))).not.toContain(
+        JSON.stringify(secret).slice(1, -1),
+      );
+    },
+  );
+
+  it.each([false, true])(
+    "bounds processing of 1 MiB escaped logs on both streams (redact=%s)",
+    (redact) => {
+      const secret = "whsec_synthetic/slash";
+      const document = JSON.stringify({
+        checks: [{ name: "after logs", pass: false, observed: secret }],
+      }).replaceAll("/", "\\/");
+      const command = script(
+        `large-logs-${redact}`,
+        `
+      const noise = String.fromCharCode(34, 92).repeat(512 * 1024);
+      for (const stream of [process.stdout, process.stderr]) {
+        stream.write(noise);
+        stream.write(${JSON.stringify(`\r\n${document}\n`)});
+      }
+      process.exitCode = 1;
+    `,
+      );
+      const probe = join(dir, `bounded-redaction-${redact}.mjs`);
+      writeFileSync(
+        probe,
+        `
+      import { runCommandAssertion } from ${JSON.stringify(new URL("./command.ts", import.meta.url).href)};
+      const result = await runCommandAssertion(${JSON.stringify(command)}, {
+        metadata: ${JSON.stringify(metadata)}, redact: ${JSON.stringify(redact ? [secret] : [])}, timeoutMs: 3000,
+      });
+      console.log(JSON.stringify({pass: result.pass, timedOut: result.timedOut, checks: result.checks}));
+    `,
+      );
+      // A separate process bounds even synchronous processing that would defeat a Vitest timeout.
+      const result = spawnSync(process.execPath, ["--experimental-strip-types", probe], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      expect(result.error, result.stderr).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        pass: false,
+        timedOut: false,
+        checks: [{ name: "after logs", pass: false, observed: redact ? "[REDACTED]" : secret }],
+      });
+    },
+    10_000,
+  );
 
   it("redacts secrets from captured output", async () => {
     const outcome = await runCommandAssertion(
