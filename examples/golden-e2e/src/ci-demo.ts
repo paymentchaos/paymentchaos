@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ExitCode, runReportSchema } from "@paymentchaos/core";
 import { startExample as startCorrectExample } from "@paymentchaos/example-stripe-express-correct/boot";
 import { startExample as startNaiveExample } from "@paymentchaos/example-stripe-express-naive/boot";
+import { CiDemoError } from "./ci-demo-error.js";
 import { messages } from "./ci-demo-messages.js";
-import { createCliScenarioRunner } from "./cli-scenario-runner.js";
+import { runCliReport } from "./cli-scenario-runner.js";
 
 const goldenRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const examplesRoot = join(goldenRoot, "..");
@@ -27,96 +28,84 @@ function cliBuilt(): boolean {
   return existsSync(join(repoRoot, "packages", "cli", "dist", "bin.js"));
 }
 
-export function parseCiDemoArgv(argv: string[]): { outDir: string } {
-  const outIndex = argv.indexOf("--out");
-  if (outIndex === -1 || argv[outIndex + 1] === undefined) {
-    throw new Error(messages.missingOut);
+/** Accepts exactly `--out <absolute dir>`, optionally after the `--` that some pnpm versions forward. */
+export function parseCiDemoArgv(argv: readonly string[]): { outDir: string } {
+  const args = argv[0] === "--" ? argv.slice(1) : argv;
+  const [flag, value, extra] = args;
+  if (flag === undefined) {
+    throw new CiDemoError("USAGE", messages.missingOut);
   }
-  const trailing = argv.slice(outIndex + 2);
-  if (trailing.some((arg) => arg.startsWith("-"))) {
-    throw new Error(messages.usage);
+  if (flag !== "--out") {
+    throw new CiDemoError("USAGE", messages.unexpectedArgument(flag));
   }
-  const rawOut = argv[outIndex + 1] ?? "";
-  if (!isAbsolute(rawOut)) {
-    throw new Error(messages.usage);
+  if (value === undefined) {
+    throw new CiDemoError("USAGE", messages.missingOut);
   }
-  return { outDir: resolve(rawOut) };
+  if (extra !== undefined) {
+    throw new CiDemoError("USAGE", messages.unexpectedArgument(extra));
+  }
+  if (!isAbsolute(value)) {
+    throw new CiDemoError("USAGE", messages.outNotAbsolute(value));
+  }
+  return { outDir: resolve(value) };
 }
 
-function assertNoSecret(text: string, secret: string, label: string): void {
-  if (secret.length > 0 && text.includes(secret)) {
-    throw new Error(messages.secretInOutput(label));
-  }
+function reportError(message: string): CiDemoError {
+  return new CiDemoError("REPORT_INVALID", message);
 }
 
-function rejectInternalExit(label: string, code: number): void {
-  if (code !== ExitCode.Ok && code !== ExitCode.AssertionFailed) {
-    throw new Error(messages.internalError(label, code));
-  }
-}
-
-async function validateJsonReport(options: {
+function validateJsonReport(options: {
   path: string;
   stdout: string;
-  secret: string;
   label: string;
   expectStatus: "passed" | "failed";
-}): Promise<void> {
-  const disk = await readFile(options.path, "utf8");
-  if (disk !== options.stdout) {
-    throw new Error(messages.stdoutMismatch(options.path));
-  }
-  assertNoSecret(options.stdout, options.secret, options.label);
+}): void {
   let parsed: unknown;
   try {
     parsed = JSON.parse(options.stdout);
-  } catch {
-    throw new Error(messages.jsonInvalid(options.path));
+  } catch (error) {
+    throw reportError(messages.jsonInvalid(options.path, (error as Error).message));
   }
-  const report = runReportSchema.parse(parsed);
-  if (report.status !== options.expectStatus) {
-    throw new Error(messages.jsonStatus(options.label, options.expectStatus, report.status));
+  const report = runReportSchema.safeParse(parsed);
+  if (!report.success) {
+    const issue = report.error.issues[0];
+    const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "invalid";
+    throw reportError(messages.jsonInvalid(options.path, detail));
   }
-  if (options.expectStatus === "failed") {
-    if (!options.stdout.includes(NAIVE_FAILURE_SNIPPET)) {
-      throw new Error(messages.naiveMessageMissing);
-    }
-  } else if (report.status !== "passed") {
-    throw new Error(messages.correctNotPassed);
+  if (report.data.status !== options.expectStatus) {
+    throw reportError(messages.jsonStatus(options.label, options.expectStatus, report.data.status));
+  }
+  if (options.expectStatus === "failed" && !options.stdout.includes(NAIVE_FAILURE_SNIPPET)) {
+    throw reportError(messages.naiveMessageMissing);
   }
 }
 
-async function validateJUnitReport(options: {
+function validateJUnitReport(options: {
   path: string;
   stdout: string;
-  secret: string;
   label: string;
   expectFailure: boolean;
-}): Promise<void> {
-  const disk = await readFile(options.path, "utf8");
-  if (disk !== options.stdout) {
-    throw new Error(messages.stdoutMismatch(options.path));
-  }
-  assertNoSecret(options.stdout, options.secret, options.label);
+}): void {
   const text = options.stdout;
-  if (!text.startsWith("<?xml") || !/<\/testsuites>\n?$/.test(text)) {
-    throw new Error(messages.junitMalformed(options.path));
-  }
   const root = text.match(/<testsuites tests="(\d+)" failures="(\d+)" errors="(\d+)"/);
-  if (!root) {
-    throw new Error(messages.junitVerdict(options.label, options.expectFailure ? "fail" : "pass"));
+  if (!text.startsWith("<?xml") || !/<\/testsuites>\n?$/.test(text) || !root) {
+    throw reportError(messages.junitMalformed(options.path));
   }
+  const tests = Number(root[1]);
   const failures = Number(root[2]);
   const errors = Number(root[3]);
+  if (tests < 1) {
+    throw reportError(messages.junitEmpty(options.label));
+  }
   if (options.expectFailure) {
     if (failures + errors < 1) {
-      throw new Error(messages.junitVerdict(options.label, "fail"));
+      throw reportError(messages.junitVerdict(options.label, "fail"));
     }
     if (!text.includes(NAIVE_FAILURE_SNIPPET)) {
-      throw new Error(messages.naiveMessageMissing);
+      throw reportError(messages.naiveMessageMissing);
     }
   } else if (failures !== 0 || errors !== 0) {
-    throw new Error(messages.junitVerdict(options.label, "pass"));
+    throw reportError(messages.junitVerdict(options.label, "pass"));
   }
 }
 
@@ -125,45 +114,50 @@ async function runOneReport(options: {
   reporter: "json" | "junit";
   outPath: string;
 }): Promise<void> {
-  const exampleDir = join(
-    examplesRoot,
-    options.label === "naive" ? "stripe-express-naive" : "stripe-express-correct",
-  );
+  const exampleName = options.label === "naive" ? "stripe-express-naive" : "stripe-express-correct";
   const start = options.label === "naive" ? startNaiveExample : startCorrectExample;
-  const humanLabel = options.label === "naive" ? "stripe-express-naive" : "stripe-express-correct";
   const expectedExit = options.label === "naive" ? ExitCode.AssertionFailed : ExitCode.Ok;
+  const tag = `${exampleName} (${options.reporter})`;
+  // A fresh app (and SQLite database) per run, so the JUnit run never sees JSON-run state.
   const app = await start();
   try {
-    const runner = createCliScenarioRunner({ exampleDir });
-    const result = await runner.runStripeSubscriptionRenewal(
+    // runCliReport rejects output containing the secret before stderr reaches any message.
+    const result = await runCliReport(
+      { exampleDir: join(examplesRoot, exampleName) },
       {
         targetWebhookUrl: `${app.baseUrl}/webhooks/stripe`,
         webhookSecret: app.webhookSecret,
         seed,
       },
-      { reporter: options.reporter, outPath: options.outPath, timeoutMs: runTimeoutMs },
+      { label: tag, reporter: options.reporter, outPath: options.outPath, timeoutMs: runTimeoutMs },
     );
-    const tag = `${humanLabel} (${options.reporter})`;
-    rejectInternalExit(tag, result.exitCode);
+    const diagnostic = messages.stderrDiagnostic(result.stderr);
+    if (result.exitCode !== ExitCode.Ok && result.exitCode !== ExitCode.AssertionFailed) {
+      throw new CiDemoError("CLI_EXIT", messages.internalError(tag, result.exitCode) + diagnostic);
+    }
     if (result.exitCode !== expectedExit) {
-      throw new Error(messages.unexpectedExit(tag, expectedExit, result.exitCode));
+      throw new CiDemoError(
+        "CLI_EXIT",
+        messages.unexpectedExit(tag, expectedExit, result.exitCode) + diagnostic,
+      );
     }
     if (!existsSync(options.outPath)) {
-      throw new Error(messages.missingArtifact(options.outPath));
+      throw reportError(messages.missingArtifact(options.outPath));
+    }
+    if ((await readFile(options.outPath, "utf8")) !== result.stdout) {
+      throw reportError(messages.stdoutMismatch(options.outPath));
     }
     if (options.reporter === "json") {
-      await validateJsonReport({
+      validateJsonReport({
         path: options.outPath,
         stdout: result.stdout,
-        secret: app.webhookSecret,
         label: tag,
         expectStatus: options.label === "naive" ? "failed" : "passed",
       });
     } else {
-      await validateJUnitReport({
+      validateJUnitReport({
         path: options.outPath,
         stdout: result.stdout,
-        secret: app.webhookSecret,
         label: tag,
         expectFailure: options.label === "naive",
       });
@@ -188,12 +182,15 @@ async function runVariant(options: { label: "naive" | "correct"; outDir: string 
 
 export async function runCiDemo(outDir: string): Promise<void> {
   if (!cliBuilt()) {
-    throw new Error(messages.missingBuild);
+    throw new CiDemoError("BUILD_MISSING", messages.missingBuild);
   }
-  await mkdir(outDir, { recursive: true });
-  const info = await stat(outDir);
-  if (!info.isDirectory()) {
-    throw new Error(messages.outputNotDirectory(outDir));
+  const info = await stat(outDir).catch(() => undefined);
+  if (info === undefined) {
+    await mkdir(outDir, { recursive: true });
+  } else if (!info.isDirectory()) {
+    throw new CiDemoError("OUTPUT_INVALID", messages.outputNotDirectory(outDir));
+  } else if ((await readdir(outDir)).length > 0) {
+    throw new CiDemoError("OUTPUT_INVALID", messages.outputNotEmpty(outDir));
   }
 
   await runVariant({ label: "naive", outDir });

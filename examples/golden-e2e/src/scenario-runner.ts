@@ -26,16 +26,9 @@ export interface StripeSubscriptionRenewalResult {
   readonly exitCode: number;
 }
 
-export interface CliScenarioInvocationOptions {
-  readonly reporter?: "terminal" | "json" | "junit";
-  readonly outPath?: string;
-  readonly timeoutMs?: number;
-}
-
 export interface ScenarioRunner {
   runStripeSubscriptionRenewal(
     request: StripeSubscriptionRenewalRequest,
-    invocation?: CliScenarioInvocationOptions,
   ): Promise<StripeSubscriptionRenewalResult>;
 }
 
