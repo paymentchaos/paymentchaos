@@ -195,7 +195,7 @@ export async function runScenario(
       timeoutMs: commandTimeoutMs,
     });
     options.signal?.throwIfAborted();
-    if (result.exitCode !== 0) {
+    if (result.exitCode !== 0 || result.timedOut) {
       const stderr = redactSecrets(result.spawnError ?? result.stderr, redact)
         .trim()
         .slice(-2000);

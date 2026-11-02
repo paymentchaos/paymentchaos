@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -415,6 +416,70 @@ describe("runScenario", () => {
       /hooks.beforeEach.*exited with 2.*db locked/,
     );
     expect(server.requests).toHaveLength(0);
+  });
+
+  it("lets beforeEach start the app in the background and runs against it", async () => {
+    // `npm start &` in a hook: the app inherits the hook's stdout and logs every request.
+    const port = await new Promise<number>((resolve) => {
+      const probe = createServer().listen(0, "127.0.0.1", () => {
+        const { port } = probe.address() as AddressInfo;
+        probe.close(() => resolve(port));
+      });
+    });
+    const pidFile = join(dir, "bg-app.pid");
+    const appScript = writeScript(
+      "bg-app.mjs",
+      `import { createServer } from "node:http";
+       let received = 0;
+       createServer((req, res) => {
+         req.resume().on("end", () => {
+           if (req.method === "POST") received++;
+           console.log(req.method + " " + req.url);
+           res.end(String(received));
+         });
+       }).listen(${port}, "127.0.0.1");
+       setTimeout(() => process.exit(0), 60000);`,
+    );
+    const start = node(
+      writeScript(
+        "start-bg-app.mjs",
+        `import { spawn } from "node:child_process";
+         import { writeFileSync } from "node:fs";
+         const app = spawn(process.execPath, [process.argv[2]], { stdio: ["ignore", "inherit", "inherit"] });
+         app.unref();
+         writeFileSync(process.argv[3], String(app.pid));
+         for (;;) {
+           try { await fetch("http://127.0.0.1:${port}/ready"); break; }
+           catch { await new Promise((r) => setTimeout(r, 50)); }
+         }`,
+      ),
+      appScript,
+      pidFile,
+    );
+    const count = node(
+      writeScript(
+        "count.mjs",
+        `const n = Number(await (await fetch("http://127.0.0.1:${port}/count")).text());
+         process.exit(n === 2 ? 0 : 1);`,
+      ),
+    );
+    const s = scenario(`http://127.0.0.1:${port}/hook`, [], {
+      hooks: { beforeEach: start },
+      assert: { command: count },
+    });
+    const started = performance.now();
+    try {
+      const { report } = await runScenario(s, { adapter, env, commandTimeoutMs: 10_000 });
+      expect(report.status).toBe("passed");
+      expect(report.deliveries).toHaveLength(2);
+      expect(performance.now() - started).toBeLessThan(8000);
+    } finally {
+      try {
+        process.kill(Number(readFileSync(pidFile, "utf8")));
+      } catch {
+        // Already gone.
+      }
+    }
   });
 
   it("requires a target and a secret", async () => {

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { Socket } from "node:net";
 
 /**
  * Run a user command through the platform shell: `/bin/sh -c` on macOS and Linux,
@@ -7,6 +8,13 @@ import { spawn } from "node:child_process";
  */
 
 const OUTPUT_LIMIT = 1024 * 1024;
+
+/**
+ * How long to keep reading output after the shell exits when something it started in the
+ * background still holds stdout or stderr open (`npm start &`). Output the shell wrote
+ * before exiting is already in the pipe, so this only bounds the wait for it to be read.
+ */
+export const EXIT_DRAIN_MS = 250;
 
 export interface ShellOptions {
   readonly env: Record<string, string>;
@@ -58,12 +66,20 @@ function killTree(pid: number | undefined): void {
   }
 }
 
+/**
+ * The command is done when the shell exits. Processes it left in the background keep
+ * running: their output is still read but discarded, so they neither block on a full pipe
+ * nor fail with EPIPE, and the pipes no longer keep PaymentChaos alive. A timeout or an
+ * abort before every pipe closes kills the whole process group, background members included.
+ */
 export function runShellCommand(command: string, options: ShellOptions): Promise<ShellResult> {
   const started = performance.now();
   return new Promise((resolve) => {
     const stdout = collector();
     const stderr = collector();
     let timedOut = false;
+    let finished = false;
+    let exitCode: number | null | undefined;
     let spawnError: string | undefined;
     const child = spawn(command, {
       shell: true,
@@ -71,7 +87,7 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-      // Own process group on POSIX so a timeout can kill the whole tree.
+      // Own process group on POSIX so a timeout or abort can kill the whole tree.
       detached: process.platform !== "win32",
     });
     const timer =
@@ -81,25 +97,46 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
             timedOut = true;
             killTree(child.pid);
           }, options.timeoutMs);
+    let drain: NodeJS.Timeout | undefined;
     const onAbort = () => killTree(child.pid);
     options.signal?.addEventListener("abort", onAbort, { once: true });
 
-    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-    child.on("error", (error) => {
-      spawnError = error.message;
-    });
-    child.on("close", (code) => {
+    const finish = () => {
+      if (finished) return;
+      finished = true;
       if (timer !== undefined) clearTimeout(timer);
-      options.signal?.removeEventListener("abort", onAbort);
+      if (drain !== undefined) clearTimeout(drain);
+      // Pipes from `stdio: "pipe"` are sockets; typed as plain Readables.
+      (child.stdout as Socket).unref();
+      (child.stderr as Socket).unref();
       resolve({
-        exitCode: code,
+        exitCode: exitCode ?? null,
         timedOut,
         stdout: stdout.text(),
         stderr: stderr.text(),
         durationMs: performance.now() - started,
         ...(spawnError === undefined ? {} : { spawnError }),
       });
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      if (!finished) stdout.push(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (!finished) stderr.push(chunk);
+    });
+    child.on("error", (error) => {
+      spawnError = error.message;
+    });
+    child.on("exit", (code) => {
+      exitCode = code;
+      if (timer !== undefined) clearTimeout(timer);
+      drain = setTimeout(finish, EXIT_DRAIN_MS);
+    });
+    child.on("close", (code) => {
+      exitCode ??= code;
+      options.signal?.removeEventListener("abort", onAbort);
+      finish();
     });
   });
 }

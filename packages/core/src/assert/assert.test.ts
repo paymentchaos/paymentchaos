@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, describe, expect, it } from "vitest";
 import { commandAssertionResults, parseCommandOutput, runCommandAssertion } from "./command.ts";
 import { buildCommandEnv, type RunMetadata } from "./env.ts";
@@ -180,6 +181,64 @@ describe("runCommandAssertion", () => {
     });
     expect(outcome).toMatchObject({ pass: false, timedOut: true });
     expect(commandAssertionResults(outcome)[0]?.message).toMatch(/timed out/);
+  });
+
+  describe("a command that leaves a process in the background", () => {
+    // The background child inherits stdout, stays quiet until the command has finished,
+    // then floods the pipe: it must neither stall the command nor die of EPIPE.
+    const background = (name: string) =>
+      script(
+        name,
+        `import { spawn } from "node:child_process";
+         const child = spawn(process.execPath, ["-e", \`
+           setTimeout(() => setInterval(() => process.stdout.write("x".repeat(65536)), 10), 1000);
+           setTimeout(() => process.exit(0), 60000);\`],
+           { stdio: ["ignore", "inherit", "inherit"], detached: process.platform === "win32" });
+         child.unref();
+         console.log(JSON.stringify({ checks: [{ name: "started", pass: true, observed: child.pid }] }));`,
+      );
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const pidOf = (outcome: { checks: readonly { observed?: unknown }[] }) =>
+      outcome.checks[0]?.observed as number;
+
+    it("completes when the shell exits and leaves the process running", async () => {
+      const outcome = await runCommandAssertion(background("bg-keep"), {
+        metadata,
+        timeoutMs: 20_000,
+      });
+      const pid = pidOf(outcome);
+      try {
+        expect(outcome).toMatchObject({ pass: true, exitCode: 0, timedOut: false });
+        expect(outcome.durationMs).toBeLessThan(5000);
+        await sleep(1500);
+        expect(alive(pid)).toBe(true);
+      } finally {
+        if (alive(pid)) process.kill(pid);
+      }
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "kills the leftover process group when the run is aborted",
+      async () => {
+        const controller = new AbortController();
+        const outcome = await runCommandAssertion(background("bg-abort"), {
+          metadata,
+          signal: controller.signal,
+        });
+        const pid = pidOf(outcome);
+        expect(alive(pid)).toBe(true);
+        controller.abort();
+        await sleep(200);
+        expect(alive(pid)).toBe(false);
+      },
+    );
   });
 
   it.each(["slash", "unicode"])(
