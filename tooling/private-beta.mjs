@@ -29,6 +29,12 @@ export function pnpm(args) {
 }
 
 export async function packPrivate(outputRoot = join(root, "dist", "private-beta")) {
+  // tsc leaves outputs behind when a source file is removed. Rebuild each bundled
+  // workspace package from an empty dist so provenance cannot include old modules.
+  const packages = JSON.parse(
+    pnpm(["--filter", "paymentchaos...", "list", "--depth", "-1", "--json"]),
+  );
+  for (const pkg of packages) await rm(join(pkg.path, "dist"), { recursive: true, force: true });
   pnpm(["--filter", "paymentchaos...", "build"]);
   const before = run("git", ["status", "--porcelain"]);
   const commit = run("git", ["rev-parse", "HEAD"]).trim();
