@@ -16,6 +16,7 @@ subprocess. Example apps are started on ephemeral ports with isolated SQLite fil
 ```bash
 pnpm --filter @paymentchaos/golden-e2e test:e2e
 pnpm --filter @paymentchaos/golden-e2e demo
+pnpm --filter @paymentchaos/golden-e2e demo:ci --out /absolute/path/to/reports
 pnpm --filter @paymentchaos/golden-e2e sandbox /absolute/path/to/results
 ```
 
@@ -23,6 +24,22 @@ pnpm --filter @paymentchaos/golden-e2e sandbox /absolute/path/to/results
 (must exit 1 on business checks) and correct (must exit 0), and prints the CLI's terminal
 report. If `packages/cli/dist/bin.js` is missing it falls back to calling `runScenario`
 directly; set `GOLDEN_E2E_DEMO_ENGINE=core` to choose that path even when the CLI is built.
+
+`demo:ci` requires a built CLI and an absolute `--out` directory. It starts each example on
+a fresh SQLite database, runs `stripe-subscription-renewal` with `--seed 1337` four times
+(JSON and JUnit for naive and correct), and writes:
+
+| File | Expected CLI exit | Verdict |
+|---|---|---|
+| `stripe-express-naive.json` | 1 | JSON `status: failed` |
+| `stripe-express-naive.junit.xml` | 1 | JUnit failures present |
+| `stripe-express-correct.json` | 0 | JSON `status: passed` |
+| `stripe-express-correct.junit.xml` | 0 | JUnit `failures="0" errors="0"` |
+
+Each run uses an isolated temp config directory; stdout must match the `--out` file. Config,
+unreachable-target and internal CLI errors (exit codes 2–4) fail the demo. Signing secrets
+stay in memory only and must not appear in reports. Each CLI invocation has a 90-second
+limit with the same process-tree cleanup as the private sandbox.
 
 The CLI runs each example's `verify.ts` assertion command through `/bin/sh` or `cmd.exe`.
 `src/shell-quote.ts` quotes its arguments for that shell: single quotes on POSIX, double

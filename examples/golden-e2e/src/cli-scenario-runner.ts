@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STRIPE_SUBSCRIPTION_RENEWAL } from "./builtin-scenarios.js";
 import type {
+  CliScenarioInvocationOptions,
   ScenarioRunner,
   StripeSubscriptionRenewalRequest,
   StripeSubscriptionRenewalResult,
@@ -54,6 +55,7 @@ export function createCliScenarioRunner(options: {
   return {
     async runStripeSubscriptionRenewal(
       request: StripeSubscriptionRenewalRequest,
+      invocation?: CliScenarioInvocationOptions,
     ): Promise<StripeSubscriptionRenewalResult> {
       const verifyScript = options.verifyScriptRel ?? "src/verify.ts";
       const base = new URL(request.targetWebhookUrl);
@@ -82,18 +84,44 @@ export function createCliScenarioRunner(options: {
         verifyCommand,
       });
 
-      const child = spawn(
-        process.execPath,
-        [cliEntrypoint(), "run", STRIPE_SUBSCRIPTION_RENEWAL.name, "--seed", String(request.seed)],
-        {
-          cwd: projectDir,
-          env: {
-            ...process.env,
-            STRIPE_WEBHOOK_SECRET: request.webhookSecret,
-          },
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
+      const cliArgs = ["run", STRIPE_SUBSCRIPTION_RENEWAL.name, "--seed", String(request.seed)];
+      if (invocation?.reporter !== undefined) {
+        cliArgs.push("--reporter", invocation.reporter);
+      }
+      if (invocation?.outPath !== undefined) {
+        cliArgs.push("--out", invocation.outPath);
+      }
+
+      const env = {
+        ...process.env,
+        STRIPE_WEBHOOK_SECRET: request.webhookSecret,
+      };
+
+      if (invocation?.timeoutMs !== undefined) {
+        const { runCliProcess } = await import("./sandbox/process.js");
+        const result = await runCliProcess(
+          cliEntrypoint(),
+          cliArgs,
+          projectDir,
+          env,
+          invocation.timeoutMs,
+        );
+        if (result.failed) {
+          throw new Error(result.stderr || "CLI subprocess failed to start");
+        }
+        return {
+          deliveries: [],
+          ids: {},
+          stdout: result.stdout + result.stderr,
+          exitCode: result.code,
+        };
+      }
+
+      const child = spawn(process.execPath, [cliEntrypoint(), ...cliArgs], {
+        cwd: projectDir,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
       let stdout = "";
       let stderr = "";
