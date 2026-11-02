@@ -70,14 +70,29 @@ export function parseCommandOutput(stdout: string): {
 
 const tail = (text: string) => (text.length > TAIL_CHARS ? text.slice(-TAIL_CHARS) : text);
 
+function redactCommandText(text: string, secrets: readonly string[]): string {
+  // Assertion output is JSON/text, not a signed webhook body. Decode string tokens
+  // before scrubbing so escaped slashes, quotes and Unicode cannot hide known secrets.
+  const scrubbed = text.replace(/"(?:[^"\\\r\n]|\\.)*"/g, (token) => {
+    try {
+      const decoded = JSON.parse(token) as string;
+      const redacted = redactSecrets(decoded, secrets);
+      return decoded === redacted ? token : JSON.stringify(redacted);
+    } catch {
+      return token;
+    }
+  });
+  return redactSecrets(scrubbed, secrets);
+}
+
 function outcomeOf(
   command: string,
   run: ShellResult,
   attempts: number,
   redact: readonly string[],
 ): CommandAssertionOutcome {
-  const stdout = redactSecrets(run.stdout, redact);
-  const stderr = redactSecrets(run.spawnError ?? run.stderr, redact);
+  const stdout = redactCommandText(run.stdout, redact);
+  const stderr = redactCommandText(run.spawnError ?? run.stderr, redact);
   const parsed = parseCommandOutput(stdout);
   return {
     command,

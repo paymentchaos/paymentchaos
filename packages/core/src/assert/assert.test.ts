@@ -181,6 +181,56 @@ describe("runCommandAssertion", () => {
     expect(commandAssertionResults(outcome)[0]?.message).toMatch(/timed out/);
   });
 
+  it.each(["slash", "unicode"])(
+    "redacts %s-escaped JSON secrets in checks and diagnostic tails",
+    async (encoding) => {
+      const secret = encoding === "slash" ? "whsec_synthetic/slash" : 'synthetic_"\\\nキー🙂';
+      const marker = "[REDACTED]";
+      const doc = {
+        checks: [
+          {
+            name: secret,
+            pass: false,
+            message: `key=${secret}`,
+            expected: { [secret]: [secret, 0, false, null] },
+            observed: secret,
+          },
+        ],
+      };
+      const encoded = JSON.stringify(doc).replace(/"(?:[^"\\]|\\.)*"/g, (token) => {
+        if (encoding === "slash") return token.replaceAll("/", "\\/");
+        const value = JSON.parse(token) as string;
+        return `"${value
+          .split("")
+          .map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
+          .join("")}"`;
+      });
+      const outcome = await runCommandAssertion(
+        script(
+          `escaped-${encoding}`,
+          `console.log("banner"); console.log(${JSON.stringify(encoded)}); console.error(${JSON.stringify(encoded)}); process.exitCode=1;`,
+        ),
+        { metadata, redact: [secret] },
+      );
+      expect(outcome.protocolError).toBeUndefined();
+      expect(outcome.pass).toBe(false);
+      expect(outcome.checks).toEqual([
+        {
+          name: marker,
+          pass: false,
+          message: `key=${marker}`,
+          expected: { [marker]: [marker, 0, false, null] },
+          observed: marker,
+        },
+      ]);
+      expect(parseCommandOutput(outcome.stdoutTail).result?.checks).toEqual(outcome.checks);
+      expect(parseCommandOutput(outcome.stderrTail).result?.checks).toEqual(outcome.checks);
+      expect(JSON.stringify(commandAssertionResults(outcome))).not.toContain(
+        JSON.stringify(secret).slice(1, -1),
+      );
+    },
+  );
+
   it("redacts secrets from captured output", async () => {
     const outcome = await runCommandAssertion(
       script("leak", "console.error('key=whsec_leaky'); process.exit(1)"),
