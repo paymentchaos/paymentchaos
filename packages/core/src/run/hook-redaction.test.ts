@@ -70,7 +70,10 @@ async function hookError(phase: "beforeEach" | "afterEach", hook: string) {
 describe("failed hook output", () => {
   for (const phase of ["beforeEach", "afterEach"] as const) {
     it.each(encodings)(`redacts a known secret printed by ${phase} as %s`, async (label, text) => {
-      const error = await hookError(phase, failingHook(`${phase}-${label}.cjs`, text));
+      const error = await hookError(
+        phase,
+        failingHook(`${phase}-${label.replace(/[^A-Za-z0-9]+/g, "-")}.cjs`, text),
+      );
       expect(error.code).toBe("CONFIG_INVALID");
       expect(error.message).toContain(`hooks.${phase}`);
       expect(error.message).toContain(REDACTED);
