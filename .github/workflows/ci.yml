@@ -38,6 +38,16 @@ jobs:
       # Workspace packages export ./dist, so dependents can only typecheck and test
       # against built output.
       - run: pnpm build
+      - name: Run the report demo
+        run: pnpm --filter @paymentchaos/golden-e2e demo:ci --out "${{ runner.temp }}/paymentchaos-demo-reports"
+      - name: Save demo reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-reports-${{ matrix.os }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/paymentchaos-demo-reports/*
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
@@ -65,6 +75,16 @@ jobs:
       # Workspace packages export ./dist, so dependents can only typecheck and test
       # against built output.
       - run: pnpm build
+      - name: Run the report demo
+        run: pnpm --filter @paymentchaos/golden-e2e demo:ci --out "${{ runner.temp }}/paymentchaos-demo-reports"
+      - name: Save demo reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-reports-macos-latest-node-24.22.0
+          path: ${{ runner.temp }}/paymentchaos-demo-reports/*
+          if-no-files-found: error
+          retention-days: 14
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
