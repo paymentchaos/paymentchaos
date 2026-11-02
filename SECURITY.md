@@ -2,11 +2,17 @@
 
 ## Supported versions
 
-PaymentChaos has not published a release yet. After the first release, security fixes will target the latest minor version.
+PaymentChaos is a development prototype with no npm release yet. Report problems against
+the latest `main` commit and include its SHA. After the first release, security fixes will
+target the latest minor version.
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability**.
+Do not open a public issue for a security problem. Use GitHub's private vulnerability
+reporting: open the repository's **Security** tab and choose **Report a vulnerability**.
+If that option is unavailable, email [hello@paymentchaos.com](mailto:hello@paymentchaos.com)
+with the subject "PaymentChaos security report". Do not include production credentials
+or real customer payloads; use a synthetic reproduction.
 
 Include the affected version or commit, reproduction steps and the impact you observed. We aim to acknowledge reports within 3 business days.
 
@@ -14,15 +20,23 @@ Include the affected version or commit, reproduction steps and the impact you ob
 
 PaymentChaos generates validly signed payment webhooks and runs user-configured commands. These areas are especially relevant:
 
-- Secrets (webhook signing secrets) appearing in terminal output, logs or reports
+- Secrets (webhook signing secrets) appearing in terminal, JSON or JUnit output, logs or reports
 - Bypass of the remote-target guard, which by default stops the tool from sending events to non-local hosts
 - Command injection through scenario files, hooks or assertion commands
-- Script injection in generated HTML reports
-- Captured payloads leaving the developer's machine, or sanitization failing to remove personal data
-- Supply-chain issues in published packages or the GitHub Action
+- Incorrect escaping or misleading results in terminal, JSON or JUnit reports
+- Generated payloads or signing secrets being sent to an unintended destination
+- Supply-chain issues in source builds or locally generated offline archives
+
+HTML reports, webhook capture/sanitization, and a reusable GitHub Action are planned,
+not implemented. The repository's CI workflow runs the included local examples; it is
+not a published action for third-party projects.
 
 ## Design commitments
 
-- No telemetry. The CLI only sends network requests to targets you configure.
-- Captured webhook payloads are stored locally and are never uploaded.
+- No telemetry. The webhook engine sends requests only to targets you configure.
+- Configured hooks and assertion commands execute local programs. Only run scenario files
+  and project configurations you trust; those programs can access files and the network
+  using your account's permissions.
+- Reports and generated offline archives are written locally. The example CI workflow
+  explicitly uploads its synthetic demo reports as GitHub Actions artifacts.
 - Generated events are always marked as test or sandbox events.
