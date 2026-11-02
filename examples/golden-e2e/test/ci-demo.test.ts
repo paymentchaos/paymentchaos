@@ -10,13 +10,14 @@ describe("ci demo argument parsing", () => {
   it("requires an absolute --out directory", () => {
     expect(() => parseCiDemoArgv([])).toThrow(messages.missingOut);
     expect(() => parseCiDemoArgv(["--out", "relative/reports"])).toThrow(messages.usage);
-    expect(() => parseCiDemoArgv(["--out", "/tmp/reports", "--verbose"])).toThrow(messages.usage);
+    expect(() => parseCiDemoArgv(["--out", join(tmpdir(), "reports"), "--verbose"])).toThrow(
+      messages.usage,
+    );
   });
 
   it("accepts a single absolute output directory", () => {
-    expect(parseCiDemoArgv(["--out", "/var/ci/paymentchaos"])).toEqual({
-      outDir: "/var/ci/paymentchaos",
-    });
+    const outDir = join(tmpdir(), "paymentchaos reports 日本語");
+    expect(parseCiDemoArgv(["--out", outDir])).toEqual({ outDir });
   });
 });
 
