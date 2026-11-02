@@ -5,7 +5,10 @@ export const siteMessages = {
   navHowItWorks: "How it works",
   navDocs: "Docs",
   navEarlyAccess: "Early access",
-  footerTagline: "PaymentChaos is a private prototype. No analytics. No trackers.",
+  footerTagline: "PaymentChaos is an open-source prototype. No analytics. No trackers.",
+  prototypeStatus: "Open-source prototype · early validation",
+  validationIntro:
+    "Try the source checkout today. PaymentChaos is not published to npm yet. Join the list for early-access updates and guided testing.",
   footerNav: "Footer navigation",
   footerDocs: "Documentation",
   footerPrivacy: "Privacy",
@@ -13,6 +16,7 @@ export const siteMessages = {
   ctaWaitlist: "Join the waitlist",
   ctaDocs: "Read the docs",
   ctaGithub: "View on GitHub",
+  ctaTryDemo: "Try the demo",
   demoLabel: "PaymentChaos seed 1337 terminal output",
 } as const;
 
@@ -27,7 +31,7 @@ export const waitlistMessages = {
   button: "Join the waitlist",
   buttonPending: "Joining…",
   pending: "Joining the waitlist…",
-  success: "You’re on the early-access list. We’ll email you when guided access opens.",
+  success: "You’re on the early-access list. We’ll email you updates about guided testing.",
   successConfirm:
     "Almost done. Check your inbox and select the confirmation link to join the early-access list.",
   invalidEmail: "Enter a valid email address.",

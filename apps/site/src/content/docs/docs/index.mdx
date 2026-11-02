@@ -28,20 +28,24 @@ failure schedules and application-state assertions.
 
 ## Current status
 
-PaymentChaos is a private M1 prototype. It is **not published to npm**, the repository
-is not public, and there is no supported public install command yet.
+PaymentChaos is an open-source prototype for developer validation. It is **not published
+to npm**. Clone the [source repository](https://github.com/paymentchaos/paymentchaos) and
+follow the [quickstart](/docs/quickstart/) to try it locally; no signup is required.
 
-Early-access users get access to the source checkout, use the pinned Node and pnpm
-toolchain, and run the built CLI from that checkout. The current implementation
+Use the pinned Node and pnpm toolchain and run the built CLI from that checkout. The current implementation
 includes:
 
 - provider adapters for Stripe, Razorpay and generic HMAC webhooks;
 - six built-in scenarios (see [Scenarios and chaos](/docs/scenarios/#built-in-scenarios));
 - two Stripe example apps, `stripe-express-naive` and `stripe-express-correct`, plus a
   golden harness that runs both through the real CLI;
-- the four M1 chaos operators, command assertions, and terminal reports that print the
-  seed, plan hash and a reproduce command;
+- the four M1 chaos operators, command assertions, and terminal, JSON and JUnit reports;
+- guided project setup with `init` and terminal reproduction commands with the seed;
 - stable exit codes.
 
 These pages walk through the Stripe example. Razorpay and generic HMAC run the same way
 with their own `providers` entry; dedicated guides for them are not written yet.
+
+HTTP assertions and HTML reports are not implemented. Generated provider IDs are synthetic;
+apps that fetch provider objects may need test API mocks. A passing concurrency run does
+not prove that every race is absent.

@@ -11,7 +11,8 @@ const loopsFormId = import.meta.env.PUBLIC_LOOPS_FORM_ID?.trim();
 // biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
 const loopsDoubleOptIn = import.meta.env.PUBLIC_LOOPS_DOUBLE_OPT_IN?.trim() === "true";
 // biome-ignore lint/correctness/noUnusedVariables: Astro template expressions use this value.
-const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
+const githubUrl =
+  import.meta.env.PUBLIC_GITHUB_URL?.trim() || "https://github.com/paymentchaos/paymentchaos";
 ---
 
 <BaseLayout
@@ -19,7 +20,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
   description="Break your payment integration before production does with deterministic webhook chaos and application-state assertions."
 >
   <section class="shell hero" aria-labelledby="hero-title">
-    <p class="eyebrow">Private prototype · early access</p>
+    <p class="eyebrow">{siteMessages.prototypeStatus}</p>
     <h1 id="hero-title">Break your payment integration before production does.</h1>
     <p class="lede">
       PaymentChaos sends provider-accurate webhook deliveries through duplicates, stale
@@ -27,7 +28,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
       business state is still correct.
     </p>
     <div class="button-row">
-      <a class="button" href="#waitlist">{siteMessages.ctaWaitlist}</a>
+      <a class="button" href="/docs/quickstart/">{siteMessages.ctaTryDemo}</a>
       <a class="button secondary" href="/docs/">{siteMessages.ctaDocs}</a>
       {githubUrl && <a class="button secondary" href={githubUrl}>{siteMessages.ctaGithub}</a>}
     </div>
@@ -151,10 +152,7 @@ const githubUrl = import.meta.env.PUBLIC_GITHUB_URL?.trim();
   <section class="shell section" id="waitlist" aria-labelledby="waitlist-title">
       <p class="eyebrow">05<span>Early access</span></p>
       <h2 id="waitlist-title">Help validate PaymentChaos.</h2>
-      <p class="lede">
-        PaymentChaos is a private prototype and is not published to npm yet. Join the waitlist
-        to hear when guided early access opens.
-      </p>
+      <p class="lede">{siteMessages.validationIntro}</p>
       {
         loopsFormId ? (
           <>
