@@ -445,7 +445,12 @@ describe("runScenario", () => {
         "start-bg-app.mjs",
         `import { spawn } from "node:child_process";
          import { writeFileSync } from "node:fs";
-         const app = spawn(process.execPath, [process.argv[2]], { stdio: ["ignore", "inherit", "inherit"] });
+         // On Windows, Node kills its own children when it exits (libuv job object); a shell's
+         // \`start /b\` child would outlive it, so detach there to model that.
+         const app = spawn(process.execPath, [process.argv[2]], {
+           stdio: ["ignore", "inherit", "inherit"],
+           detached: process.platform === "win32",
+         });
          app.unref();
          writeFileSync(process.argv[3], String(app.pid));
          for (;;) {
