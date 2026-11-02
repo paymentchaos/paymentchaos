@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runSandbox } from "../examples/golden-e2e/src/sandbox/run.ts";
@@ -17,6 +17,16 @@ try {
   await mkdir(realTemp);
   await symlink(realTemp, linkedTemp, process.platform === "win32" ? "junction" : "dir");
   process.env[tempVariable] = linkedTemp;
+  const packages = JSON.parse(
+    pnpm(["--filter", "paymentchaos...", "list", "--depth", "-1", "--json"]),
+  );
+  const staleName = "__paymentchaos_stale_build_probe__.js";
+  for (const pkg of packages) {
+    await mkdir(join(pkg.path, "dist"), { recursive: true });
+    await writeFile(join(pkg.path, "dist", staleName), "throw new Error('stale build');\n", {
+      flag: "wx",
+    });
+  }
   const { tarball, version } = await packPrivate(join(scratch, "archives"));
   const prefix = join(scratch, "installed café tool");
   // Empty cache plus offline mode proves the archive supplies every runtime dependency.
@@ -42,6 +52,12 @@ try {
     "paymentchaos",
   );
   const installed = JSON.parse(await readFile(join(packagePath, "package.json"), "utf8"));
+  for (const pkg of packages) {
+    const installedPath =
+      pkg.name === "paymentchaos" ? packagePath : join(packagePath, "node_modules", pkg.name);
+    assert.equal(existsSync(join(installedPath, "dist", staleName)), false, pkg.name);
+    assert.equal(existsSync(join(pkg.path, "dist", staleName)), false, pkg.name);
+  }
   assert.equal(installed.version, version);
   assert.equal(installed.private, true);
   assert(
