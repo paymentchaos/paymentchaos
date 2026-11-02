@@ -3,6 +3,7 @@ import {
   type CommandAssertionOutcome,
   commandAssertionResults,
   DEFAULT_COMMAND_TIMEOUT_MS,
+  redactCommandText,
   runCommandAssertion,
 } from "../assert/command.ts";
 import { buildCommandEnv, type RunMetadata } from "../assert/env.ts";
@@ -29,7 +30,7 @@ import { messages } from "../messages.ts";
 import type { OperatorRegistry } from "../operators/registry.ts";
 import { compilePlan } from "../plan/compile.ts";
 import { createRunNonce } from "../runtime/ids.ts";
-import { type Env, redactSecrets, resolveSecret, secretValues } from "../safety/secrets.ts";
+import { type Env, resolveSecret, secretValues } from "../safety/secrets.ts";
 import { assertTargetAllowed } from "../safety/target-guard.ts";
 
 export interface RunScenarioOptions {
@@ -196,12 +197,19 @@ export async function runScenario(
     });
     options.signal?.throwIfAborted();
     if (result.exitCode !== 0) {
-      const stderr = redactSecrets(result.spawnError ?? result.stderr, redact)
+      // Hook output is JSON or text like assertion output, so escaped secrets are decoded first.
+      const stderr = redactCommandText(result.spawnError ?? result.stderr, redact)
         .trim()
         .slice(-2000);
       throw new PaymentChaosError(
         "CONFIG_INVALID",
-        messages.hookFailed(phase, command, result.exitCode, result.timedOut, stderr),
+        messages.hookFailed(
+          phase,
+          redactCommandText(command, redact),
+          result.exitCode,
+          result.timedOut,
+          stderr,
+        ),
         {
           details: { phase, exitCode: result.exitCode },
         },
