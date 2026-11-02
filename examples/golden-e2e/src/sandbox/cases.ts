@@ -271,7 +271,7 @@ export async function runCases(h: Harness) {
     run(renewal.name, ["--repeat", "0"]),
     run(renewal.name, ["--repeat-index", "2"]),
     run(renewal.name, ["--timeout-ms", "2147483648"]),
-    run(renewal.name, ["--reporter", "json"]),
+    run(renewal.name, ["--reporter", "not-a-reporter"]),
   ])
     await h.test(`usage rejects ${args.join(" ")}`, async (t) => {
       await t.configure("stripe", renewal.types);
