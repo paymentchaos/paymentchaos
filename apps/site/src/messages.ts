@@ -18,6 +18,15 @@ export const siteMessages = {
   ctaGithub: "View on GitHub",
   ctaTryDemo: "Try the demo",
   demoLabel: "PaymentChaos seed 1337 terminal output",
+  demoRecording: "Download the 35-second terminal recording (.cast)",
+  demoRecordingNote:
+    "Captured CLI output, paced for readability. Replay with asciinema play demo.cast.",
+  privacyContactHeading: "Who to contact",
+  privacyContact:
+    "The PaymentChaos project operates this waitlist. For privacy questions, access requests, or deletion requests, contact",
+  privacyHostingHeading: "Website hosting",
+  privacyHosting:
+    "AWS Amplify hosts this website. AWS processes request information such as IP addresses, request paths, timestamps, and browser information to deliver and protect the site. Hosting access logs may contain these details; they are separate from the Loops mailing list and are not used by PaymentChaos for advertising or behavioral profiling.",
 } as const;
 
 export const waitlistMessages = {

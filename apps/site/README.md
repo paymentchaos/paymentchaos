@@ -40,7 +40,11 @@ All three are public. They are compiled into the static HTML, so never put a sec
 ### Terminal demo transcript
 
 `src/data/demo.txt` is real output from `pnpm --filter @paymentchaos/golden-e2e demo`
-(seed 1337). Recapture it after the CLI output changes:
+(seed 1337). `public/demo.cast` contains the same captured output as an asciicast v2
+recording paced over 35 seconds for readability; its playback timing is not the runtime
+of the test. The landing page links both the transcript and downloadable recording.
+Replay the recording with `asciinema play apps/site/public/demo.cast` after installing
+asciinema separately. Recapture both files after the CLI output changes:
 
 ```sh
 pnpm build

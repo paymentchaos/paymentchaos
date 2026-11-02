@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { captureMessages } from "./capture-demo-messages.js";
 
 const siteRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(siteRoot, "..", "..");
@@ -26,13 +27,19 @@ const exitCode = await new Promise<number>((resolve, reject) => {
 
 if (exitCode !== 0) {
   process.stderr.write(Buffer.concat(chunks));
-  throw new Error(`Golden demo exited with code ${exitCode}; transcript was not replaced.`);
+  throw new Error(captureMessages.failed(exitCode));
 }
 
 const capturedOutput = Buffer.concat(chunks)
   .toString("utf8")
   .replaceAll(process.execPath, "node")
   .replaceAll(repoRoot, "<repo>");
+if (
+  !capturedOutput.includes("naive exit 1 (expected)") ||
+  !capturedOutput.includes("correct exit 0 (expected)")
+) {
+  throw new Error(captureMessages.unexpected);
+}
 const transcript = [
   "$ pnpm --filter @paymentchaos/golden-e2e demo",
   "",
@@ -42,4 +49,26 @@ const transcript = [
 
 await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, transcript, "utf8");
-process.stdout.write(`Captured real seed-1337 demo output in ${outputPath}\n`);
+// Asciicast v2 stores terminal output events. Pace the real captured lines over 35s;
+// this is a readable replay, not a claim about the execution's wall-clock duration.
+// https://docs.asciinema.org/manual/asciicast/v2/
+const lines = transcript.trimEnd().split("\n");
+const recording = [
+  JSON.stringify({
+    version: 2,
+    width: 120,
+    height: 36,
+    duration: 35,
+    title: captureMessages.title,
+  }),
+  ...lines.map((line, index) =>
+    JSON.stringify([
+      Number(((35 * index) / Math.max(1, lines.length - 1)).toFixed(3)),
+      "o",
+      `${line}\r\n`,
+    ]),
+  ),
+].join("\n");
+await mkdir(join(siteRoot, "public"), { recursive: true });
+await writeFile(join(siteRoot, "public", "demo.cast"), `${recording}\n`, "utf8");
+process.stdout.write(`${captureMessages.finished(outputPath)}\n`);

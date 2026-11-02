@@ -6,12 +6,12 @@ PaymentChaos golden demo (seed=1337, engine=cli)
 === stripe-express-naive (expect business failure) ===
 seed 1337
 Deliveries
-#0  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 1  200  21.9ms  reorder,concurrent
-#1  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 2  200  19.8ms  reorder,concurrent
-#2  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 3  200  19.8ms  reorder,concurrent
-#3  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 4  200  1.4ms  duplicate,reorder
-#4  invoice.paid  evt_yjMWgMdNits3DNqYBWZYTbr6  attempt 5  200  1.5ms  duplicate,reorder
-#5  customer.subscription.updated  evt_yjMWgMdNwbotm5Xu1xskc1DM  attempt 1  200  32.3ms  reorder
+#0  invoice.paid  evt_Ez15z8nnits3DNqYBWZYTbr6  attempt 1  200  22.9ms  reorder,concurrent
+#1  invoice.paid  evt_Ez15z8nnits3DNqYBWZYTbr6  attempt 2  200  20.7ms  reorder,concurrent
+#2  invoice.paid  evt_Ez15z8nnits3DNqYBWZYTbr6  attempt 3  200  20.7ms  reorder,concurrent
+#3  invoice.paid  evt_Ez15z8nnits3DNqYBWZYTbr6  attempt 4  200  1.3ms  duplicate,reorder
+#4  invoice.paid  evt_Ez15z8nnits3DNqYBWZYTbr6  attempt 5  200  1.2ms  duplicate,reorder
+#5  customer.subscription.updated  evt_Ez15z8nnwbotm5Xu1xskc1DM  attempt 1  200  32.0ms  reorder
 
 Assertions
 ✓ every validly signed delivery is accepted
@@ -33,12 +33,12 @@ naive exit 1 (expected)
 === stripe-express-correct (expect pass) ===
 seed 1337
 Deliveries
-#0  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 1  200  11.6ms  reorder,concurrent
-#1  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 2  200  9.2ms  reorder,concurrent
-#2  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 3  200  9.2ms  reorder,concurrent
-#3  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 4  200  1.2ms  duplicate,reorder
-#4  invoice.paid  evt_OpROvtOkits3DNqYBWZYTbr6  attempt 5  200  0.8ms  duplicate,reorder
-#5  customer.subscription.updated  evt_OpROvtOkwbotm5Xu1xskc1DM  attempt 1  200  1.2ms  reorder
+#0  invoice.paid  evt_2KgYDkv6its3DNqYBWZYTbr6  attempt 1  200  11.1ms  reorder,concurrent
+#1  invoice.paid  evt_2KgYDkv6its3DNqYBWZYTbr6  attempt 2  200  8.8ms  reorder,concurrent
+#2  invoice.paid  evt_2KgYDkv6its3DNqYBWZYTbr6  attempt 3  200  8.8ms  reorder,concurrent
+#3  invoice.paid  evt_2KgYDkv6its3DNqYBWZYTbr6  attempt 4  200  1.2ms  duplicate,reorder
+#4  invoice.paid  evt_2KgYDkv6its3DNqYBWZYTbr6  attempt 5  200  1.1ms  duplicate,reorder
+#5  customer.subscription.updated  evt_2KgYDkv6wbotm5Xu1xskc1DM  attempt 1  200  1.3ms  reorder
 
 Assertions
 ✓ every validly signed delivery is accepted
