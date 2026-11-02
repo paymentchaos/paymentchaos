@@ -42,6 +42,8 @@ export const messages = {
   runArgAllowRemoteTarget: "Allow a non-local target hostname",
   runArgStableIds: "Disable per-run id nonce (needed to replay a selected repeat's ids)",
   runArgTimeoutMs: "Per-delivery HTTP timeout in milliseconds (default 10000)",
+  interrupted: (signal: string) =>
+    `Interrupted by ${signal}. Stopped the run and the hook and assertion commands it started; the interrupted scenario has no report.`,
 } as const;
 
 export const initMessages = {

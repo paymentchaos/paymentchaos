@@ -119,6 +119,13 @@ If writing the file fails, stdout still contains the report and the CLI exits 2.
 | 3 | Target unreachable |
 | 4 | Internal error |
 
+Ctrl-C (SIGINT) or SIGTERM during `run` stops sending and kills the running hook or
+assertion command with its whole process tree. Those commands run in their own process
+group, so the terminal's Ctrl-C does not reach them directly. The CLI prints
+`Interrupted by SIGINT…` to stderr, writes no report for the interrupted scenario, and then
+ends by the same signal, so shells and CI see an interrupted process rather than a 0–4 code.
+On Windows it exits 130 (SIGINT) or 143 (SIGTERM). A second signal ends the CLI immediately.
+
 ## Engine integration
 
 The CLI uses `@paymentchaos/core` (`compilePlan`, `runScenario`) with statically imported Stripe, Razorpay and generic HMAC adapters. Tests use `@paymentchaos/core/testing` doubles; production code does not ship a fake provider.

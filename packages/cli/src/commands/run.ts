@@ -7,6 +7,7 @@ import type { CommandDef } from "citty";
 import { createEngine } from "../engine/create-engine.ts";
 import { ExitCode, exitCodeForReport } from "../exit.ts";
 import { parseOptionalPositiveInt, parseOptionalSeed } from "../flags.ts";
+import { interruptOnSignals } from "../interrupt.ts";
 import { messages } from "../messages.ts";
 import { mergeScenarioWithProject } from "../scenario/merge.ts";
 import { loadResolvedScenario, resolveScenarioRef } from "../scenario/resolve.ts";
@@ -81,64 +82,75 @@ export function createRunCommand(): CommandDef {
       const reports: RunReport[] = [];
       let output = "";
 
-      for (const ref of refs) {
-        const resolved = await resolveScenarioRef(cwd, ref);
-        const loaded = await loadResolvedScenario(resolved);
-        let scenario = loaded.scenario;
-        if (repeatFlag !== undefined) {
-          scenario = { ...scenario, repeat: repeatFlag };
+      const interrupt = interruptOnSignals();
+      try {
+        for (const ref of refs) {
+          interrupt.signal.throwIfAborted();
+          const resolved = await resolveScenarioRef(cwd, ref);
+          const loaded = await loadResolvedScenario(resolved);
+          let scenario = loaded.scenario;
+          if (repeatFlag !== undefined) {
+            scenario = { ...scenario, repeat: repeatFlag };
+          }
+          scenario = mergeScenarioWithProject(scenario, project?.config);
+
+          const effectiveSeed = seedFlag ?? scenario.seed;
+          const effectiveRepeat = scenario.repeat ?? repeatFlag ?? 1;
+
+          const outcome = await engine.run({
+            scenario,
+            cwd,
+            ...(effectiveSeed !== undefined ? { seed: effectiveSeed } : {}),
+            repeat: effectiveRepeat,
+            ...(repeatIndex !== undefined ? { repeatIndex } : {}),
+            ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
+            ...(stableIds ? { stableIds: true } : {}),
+            ...(timeoutMillis !== undefined ? { timeoutMillis } : {}),
+            signal: interrupt.signal,
+          });
+
+          reports.push(outcome.report);
+          const code = exitCodeForReport(outcome.report);
+          if (code !== ExitCode.Ok) {
+            lastExit = code;
+          }
+          if (reporter !== "terminal") continue;
+
+          console.log(messages.runSeedLine(outcome.report.seed));
+
+          const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
+          const scenarioRepeat = outcome.scenarioRepeat;
+          let failedRepeatIndex = outcome.failedRepeatIndex;
+          if (failedRepeatIndex === undefined && outcome.report.status !== "passed") {
+            failedRepeatIndex = repeatIndex;
+          }
+
+          const text = renderTerminalReport(outcome.report, {
+            cliCommand: [process.execPath, fileURLToPath(new URL("../bin.js", import.meta.url))],
+            runArgs: [
+              ...(stableIds ? ["--stable-ids"] : []),
+              ...(timeoutMillis !== undefined ? ["--timeout-ms", String(timeoutMillis)] : []),
+              ...(allowRemoteTarget !== undefined
+                ? ["--allow-remote-target", allowRemoteTarget]
+                : []),
+            ],
+            scenarioRef,
+            ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
+            ...(repeatIndex !== undefined ? { repeatSelection: true } : {}),
+            ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
+            ...(outcome.notes.length > 0 ? { notes: outcome.notes } : {}),
+            color: process.stdout.isTTY,
+          });
+
+          process.stdout.write(text);
+          output += text;
         }
-        scenario = mergeScenarioWithProject(scenario, project?.config);
-
-        const effectiveSeed = seedFlag ?? scenario.seed;
-        const effectiveRepeat = scenario.repeat ?? repeatFlag ?? 1;
-
-        const outcome = await engine.run({
-          scenario,
-          cwd,
-          ...(effectiveSeed !== undefined ? { seed: effectiveSeed } : {}),
-          repeat: effectiveRepeat,
-          ...(repeatIndex !== undefined ? { repeatIndex } : {}),
-          ...(allowRemoteTarget !== undefined ? { allowRemoteTarget } : {}),
-          ...(stableIds ? { stableIds: true } : {}),
-          ...(timeoutMillis !== undefined ? { timeoutMillis } : {}),
-        });
-
-        reports.push(outcome.report);
-        const code = exitCodeForReport(outcome.report);
-        if (code !== ExitCode.Ok) {
-          lastExit = code;
-        }
-        if (reporter !== "terminal") continue;
-
-        console.log(messages.runSeedLine(outcome.report.seed));
-
-        const scenarioRef = resolved.kind === "file" ? path.normalize(loaded.ref) : loaded.ref;
-        const scenarioRepeat = outcome.scenarioRepeat;
-        let failedRepeatIndex = outcome.failedRepeatIndex;
-        if (failedRepeatIndex === undefined && outcome.report.status !== "passed") {
-          failedRepeatIndex = repeatIndex;
-        }
-
-        const text = renderTerminalReport(outcome.report, {
-          cliCommand: [process.execPath, fileURLToPath(new URL("../bin.js", import.meta.url))],
-          runArgs: [
-            ...(stableIds ? ["--stable-ids"] : []),
-            ...(timeoutMillis !== undefined ? ["--timeout-ms", String(timeoutMillis)] : []),
-            ...(allowRemoteTarget !== undefined
-              ? ["--allow-remote-target", allowRemoteTarget]
-              : []),
-          ],
-          scenarioRef,
-          ...(scenarioRepeat !== undefined ? { scenarioRepeat } : {}),
-          ...(repeatIndex !== undefined ? { repeatSelection: true } : {}),
-          ...(failedRepeatIndex !== undefined ? { failedRepeatIndex } : {}),
-          ...(outcome.notes.length > 0 ? { notes: outcome.notes } : {}),
-          color: process.stdout.isTTY,
-        });
-
-        process.stdout.write(text);
-        output += text;
+        interrupt.signal.throwIfAborted();
+      } catch (error) {
+        // An abort can surface as a timer's AbortError; report the interrupt itself.
+        throw interrupt.signal.aborted ? interrupt.signal.reason : error;
+      } finally {
+        interrupt.dispose();
       }
 
       if (reporter !== "terminal") {
