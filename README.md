@@ -81,8 +81,9 @@ Choose `--provider razorpay` or `--provider generic-hmac` for those integrations
 directories and does not send webhooks. See the [CLI guide](packages/cli/README.md) and
 [state assertion guide](apps/site/src/content/docs/docs/assertions.mdx).
 
-The current prototype supports command-based assertions and terminal reports. HTTP
-assertions are rejected until implemented; JSON/JUnit/HTML reporting is planned. Generated
+The current prototype supports command-based assertions and terminal, JSON and JUnit reports
+(`--reporter json` or `--reporter junit`; see the [report guide](packages/cli/README.md#reports)).
+HTTP assertions are rejected until implemented; HTML reporting is planned. Generated
 provider IDs are synthetic, so apps that fetch provider objects may need test API mocks.
 A passing concurrency run does not prove the absence of every race.
 

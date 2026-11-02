@@ -1,6 +1,7 @@
-/** User-facing terminal report strings (i18n-ready). */
+/** User-facing report strings (i18n-ready). */
 
 export const messages = {
+  junitRunStatus: "PaymentChaos run status",
   deliveriesHeading: "Deliveries",
   assertionsHeading: "Assertions",
   passedBanner: "PAYMENTCHAOS PASSED",

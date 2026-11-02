@@ -1,0 +1,81 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`machine reporters > preserves the complete frozen JSON schema and Unicode values 1`] = `
+"{
+  "schemaVersion": 1,
+  "runId": "run_demo",
+  "seed": -1337,
+  "planHash": "a1234567",
+  "provider": "stripe",
+  "scenario": "更新 & renewal",
+  "startedAt": "2026-01-15T12:00:00.000Z",
+  "finishedAt": "2026-01-15T12:00:01.234Z",
+  "repeat": 20,
+  "repeatsFailed": 2,
+  "status": "failed",
+  "deliveries": [
+    {
+      "seq": 0,
+      "attempt": 2,
+      "eventType": "invoice.paid",
+      "eventId": "evt_demo",
+      "latencyMs": 10,
+      "statusCode": 200,
+      "chaosTags": [
+        "duplicate",
+        "concurrent"
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "name": "signature",
+      "pass": true
+    },
+    {
+      "name": "balance < \\"expected\\"",
+      "pass": false,
+      "message": "重复 & duplicate",
+      "expected": {
+        "JPY": 100,
+        "INR": 10000,
+        "BHD": 100000
+      },
+      "observed": null
+    }
+  ]
+}
+"
+`;
+
+exports[`machine reporters > renders one suite per scenario with accurate assertion counts and metadata 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="3" failures="1" errors="0" skipped="0" time="2.468">
+  <testsuite id="0" name="更新 &amp; renewal" tests="2" failures="1" errors="0" skipped="0" time="1.234" timestamp="2026-01-15T12:00:00.000Z">
+    <properties>
+      <property name="runId" value="run_demo"/>
+      <property name="seed" value="-1337"/>
+      <property name="planHash" value="a1234567"/>
+      <property name="provider" value="stripe"/>
+      <property name="status" value="failed"/>
+      <property name="repeat" value="20"/>
+      <property name="repeatsFailed" value="2"/>
+    </properties>
+    <testcase name="signature" classname="stripe.更新 &amp; renewal"></testcase>
+    <testcase name="balance &lt; &quot;expected&quot;" classname="stripe.更新 &amp; renewal"><failure message="重复 &amp; duplicate">重复 &amp; duplicate&#10;    expected: {&quot;JPY&quot;:100,&quot;INR&quot;:10000,&quot;BHD&quot;:100000}&#10;    observed: null</failure></testcase>
+  </testsuite>
+  <testsuite id="1" name="更新 &amp; renewal" tests="1" failures="0" errors="0" skipped="0" time="1.234" timestamp="2026-01-15T12:00:00.000Z">
+    <properties>
+      <property name="runId" value="run_demo"/>
+      <property name="seed" value="-1337"/>
+      <property name="planHash" value="a1234567"/>
+      <property name="provider" value="stripe"/>
+      <property name="status" value="passed"/>
+      <property name="repeat" value="1"/>
+      <property name="repeatsFailed" value="0"/>
+    </properties>
+    <testcase name="signature" classname="stripe.更新 &amp; renewal"></testcase>
+  </testsuite>
+</testsuites>
+"
+`;

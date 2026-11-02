@@ -21,7 +21,10 @@ export const messages = {
     `${provider}\t${id}\t${title}\t${events}`,
   shellQuotingNote:
     "Assertion and hook commands run in your platform shell. On Windows (cmd.exe) use double quotes; on Unix use single quotes around arguments with spaces.",
-  reporterUnknown: (name: string) => `Unknown reporter "${name}". Supported: terminal.`,
+  reporterUnknown: (name: string) =>
+    `Unknown reporter "${name}". Supported: terminal, json, junit.`,
+  reportWriteFailed: (file: string) =>
+    `Could not write report to ${file}. Check that its parent directory exists and the file is writable.`,
   runRequiresScenario: "Provide at least one scenario name or file path.",
   providerUnknown: (provider: string, supported: readonly string[]) =>
     `Unknown provider "${provider}". Choose one of: ${supported.join(", ")}.`,
@@ -34,8 +37,8 @@ export const messages = {
   runArgRepeat: "Repeat the scenario N times",
   runArgRepeatIndex:
     "Run a single repeat index (1-based; requires the same --repeat as the original run)",
-  runArgReporter: "Report format (terminal)",
-  runArgOut: "Write the report to a file",
+  runArgReporter: "Report format (terminal, json, junit)",
+  runArgOut: "Also write all completed scenario reports to a file (overwrites on completion)",
   runArgAllowRemoteTarget: "Allow a non-local target hostname",
   runArgStableIds: "Disable per-run id nonce (needed to replay a selected repeat's ids)",
   runArgTimeoutMs: "Per-delivery HTTP timeout in milliseconds (default 10000)",

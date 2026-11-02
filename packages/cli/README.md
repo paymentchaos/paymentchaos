@@ -77,6 +77,38 @@ Quote scenario paths that contain spaces when invoking from a shell (single quot
 
 Remote targets require `--allow-remote-target <hostname>` matching the URL host.
 
+## Reports
+
+From your configured application's directory, using the privately installed CLI:
+
+```bash
+paymentchaos run stripe-subscription-renewal --reporter json --out report.json
+paymentchaos run stripe-subscription-renewal --reporter junit --out junit.xml
+paymentchaos run first.yaml second.yaml --reporter junit --out junit.xml
+```
+
+For a checkout, replace `paymentchaos` with `node /path/to/paymentchaos/packages/cli/dist/bin.js`.
+The default reporter is `terminal`. JSON/JUnit stdout contains only the report, with no
+seed banner or terminal formatting. `--out` also writes the same machine output to a file;
+its parent directory must exist. A completed invocation replaces that file, keeping **all**
+scenario results. Assertion failures still write reports and exit 1.
+
+JSON is one object for one scenario and an array for multiple scenarios. Each object
+conforms to [`schemas/report.v1.json`](../../schemas/report.v1.json), including full
+delivery results, expected/observed values, UTC timestamps, seed, plan hash and repeat counts.
+JUnit is one XML document with one suite per scenario and one testcase per assertion.
+Failures include expected/observed details; suite properties retain run metadata and
+repeat counts. A run-level failure/error without a corresponding failing assertion gets
+an additional testcase so CI cannot mistake it for a pass. XML-invalid characters are
+replaced with U+FFFD; markup is escaped.
+
+For repeated scenarios, both formats use core's summary: first failed repetition, or last
+successful repetition, plus counts of repetitions actually executed. They do not list every
+repetition. Config, hook or unreachable-target errors that abort a run go to stderr with the
+existing exit code; no machine report is emitted and an existing output file is left unchanged.
+CI must check the exit code as well as report contents, and use a fresh artifact path per job.
+If writing the file fails, stdout still contains the report and the CLI exits 2.
+
 ## Exit codes
 
 | Code | Meaning |
