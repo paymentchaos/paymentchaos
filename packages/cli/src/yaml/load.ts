@@ -7,7 +7,15 @@ import {
   type Scenario,
   scenarioSchema,
 } from "@paymentchaos/core";
-import { LineCounter, type ParsedNode, parseDocument } from "yaml";
+import {
+  type Alias,
+  isMap,
+  isScalar,
+  LineCounter,
+  type ParsedNode,
+  parseDocument,
+  visit,
+} from "yaml";
 import { messages } from "../messages.ts";
 
 const CONFIG_FILE = "paymentchaos.config.yaml";
@@ -43,10 +51,15 @@ function hintForIssue(code: string, message: string): string {
   if (code === "invalid_format" && message.includes("url")) {
     return "use a full URL such as http://localhost:3000/webhooks/stripe";
   }
-  if (message.includes("Unrecognized key")) {
-    return "remove the unknown key or check spelling against the schema";
-  }
   return "fix the value to match the scenario schema";
+}
+
+function unknownKeyNode(parent: ParsedNode | null, key: string | undefined): ParsedNode | null {
+  if (!isMap(parent) || key === undefined) {
+    return null;
+  }
+  const pair = parent.items.find((item) => isScalar(item.key) && String(item.key.value) === key);
+  return (pair?.key as ParsedNode | undefined) ?? null;
 }
 
 function assertValid<T>(
@@ -55,7 +68,9 @@ function assertValid<T>(
       | { success: true; data: T }
       | {
           success: false;
-          error: { issues: { path: PropertyKey[]; message: string; code: string }[] };
+          error: {
+            issues: { path: PropertyKey[]; message: string; code: string; keys?: string[] }[];
+          };
         };
   },
   value: unknown,
@@ -72,6 +87,17 @@ function assertValid<T>(
     throw new PaymentChaosError("CONFIG_INVALID", `Invalid YAML in ${filePath}`);
   }
   const node = getNodeAtPath(doc, issue.path);
+  if (issue.code === "unrecognized_keys") {
+    // zod quotes the key, and a mistyped line can make the key a pasted secret. Point at it instead.
+    const keyNode = unknownKeyNode(node, issue.keys?.[0]);
+    const pos = keyNode?.range ? lineCounter.linePos(keyNode.range[0]) : { line: 1, col: 1 };
+    const line = keyNode ? pos.line : nodeLine(lineCounter, node);
+    throw new PaymentChaosError(
+      "CONFIG_INVALID",
+      messages.yamlUnknownKey(filePath, line, keyNode ? pos.col : undefined),
+      { details: { file: filePath, line } },
+    );
+  }
   const line = nodeLine(lineCounter, node);
   const hint = hintForIssue(issue.code, issue.message);
   throw new PaymentChaosError(
@@ -97,21 +123,53 @@ async function readYamlDocument(filePath: string): Promise<{
 
   const lineCounter = new LineCounter();
   const doc = parseDocument(source, { lineCounter, strict: true });
-  if (doc.errors.length > 0) {
-    const err = doc.errors[0];
-    const line = err?.linePos?.[0]?.line !== undefined ? err.linePos[0].line : 1;
+  const err = doc.errors[0];
+  if (err !== undefined) {
+    // err.message quotes the offending source line, so only its position and code are reported.
+    const pos = err.linePos?.[0] ?? { line: 1, col: 1 };
     throw new PaymentChaosError(
       "CONFIG_INVALID",
-      messages.yamlValidation(
-        absolute,
-        line,
-        err?.message ?? "YAML syntax error",
-        "fix YAML syntax",
-      ),
+      messages.yamlSyntax(absolute, pos.line, pos.col, err.code),
+      { details: { file: absolute, line: pos.line, column: pos.col, yamlCode: err.code } },
     );
   }
 
-  return { absolute, doc, lineCounter, value: doc.toJSON() };
+  let value: unknown;
+  try {
+    value = doc.toJSON();
+  } catch {
+    // toJSON throws a ReferenceError naming the alias for an unresolved alias or an alias bomb.
+    throw aliasError(doc, lineCounter, absolute);
+  }
+  return { absolute, doc, lineCounter, value };
+}
+
+function aliasError(
+  doc: ReturnType<typeof parseDocument>,
+  lineCounter: LineCounter,
+  file: string,
+): PaymentChaosError {
+  let first: Alias | undefined;
+  let unresolved: Alias | undefined;
+  visit(doc, {
+    Alias(_key, node) {
+      first ??= node;
+      if (node.resolve(doc) === undefined) {
+        unresolved = node;
+        return visit.BREAK;
+      }
+      return undefined;
+    },
+  });
+  const node = unresolved ?? first;
+  const pos = node?.range ? lineCounter.linePos(node.range[0]) : { line: 1, col: 1 };
+  const message =
+    unresolved === undefined
+      ? messages.yamlAliasLimit(file, pos.line, pos.col)
+      : messages.yamlUnresolvedAlias(file, pos.line, pos.col);
+  return new PaymentChaosError("CONFIG_INVALID", message, {
+    details: { file, line: pos.line, column: pos.col },
+  });
 }
 
 export async function loadScenarioFile(filePath: string): Promise<Scenario> {
