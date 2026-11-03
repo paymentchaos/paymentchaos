@@ -98,6 +98,10 @@ export const messages = {
   // redaction can't catch it. The phase names the line in the scenario file.
   hookFailed: (phase: string, exitCode: number | null, timedOut: boolean, stderr: string) =>
     `hooks.${phase} command ${timedOut ? "timed out" : `exited with ${exitCode === null ? "a signal" : String(exitCode)}`}.${stderr === "" ? "" : ` stderr: ${stderr}`} Fix the hook so it exits 0.`,
+  hookNotStarted: (phase: string, reason: string) =>
+    `hooks.${phase} command could not be started: ${reason} Fix the hook command.`,
+  commandNotStarted: (code: string) =>
+    `Node.js could not pass the command to the shell (${code}). Check it for characters a command line can't hold, such as a NUL byte.`,
   planHashDrift: () =>
     "The plan hash changed between repetitions of one run. Planning must be deterministic; this is a bug in PaymentChaos or the provider adapter.",
   httpAssertNotYetSupported: () =>

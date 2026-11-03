@@ -1,5 +1,7 @@
-import { spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn } from "node:child_process";
 import type { Socket } from "node:net";
+import type { Readable } from "node:stream";
+import { messages } from "../messages.ts";
 
 /**
  * Run a user command through the platform shell: `/bin/sh -c` on macOS and Linux,
@@ -81,15 +83,31 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
     let finished = false;
     let exitCode: number | null | undefined;
     let spawnError: string | undefined;
-    const child = spawn(command, {
-      shell: true,
-      env: options.env,
-      ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-      // Own process group on POSIX so a timeout or abort can kill the whole tree.
-      detached: process.platform !== "win32",
-    });
+    let child: ChildProcessByStdio<null, Readable, Readable>;
+    try {
+      child = spawn(command, {
+        shell: true,
+        env: options.env,
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        // Own process group on POSIX so a timeout or abort can kill the whole tree.
+        detached: process.platform !== "win32",
+      });
+    } catch (error) {
+      // Node's argument errors (a NUL byte, say) quote the whole command, which may hold a
+      // credential, so only the error code is kept.
+      const code = (error as NodeJS.ErrnoException).code;
+      resolve({
+        exitCode: null,
+        timedOut: false,
+        stdout: "",
+        stderr: "",
+        durationMs: performance.now() - started,
+        spawnError: messages.commandNotStarted(typeof code === "string" ? code : "unknown"),
+      });
+      return;
+    }
     const timer =
       options.timeoutMs === undefined
         ? undefined
