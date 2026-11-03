@@ -275,6 +275,31 @@ describe("executePlan", () => {
     await fast.close();
   });
 
+  it("waits out a delay longer than one timer allows instead of firing after 1 ms", async () => {
+    // 3e9 ms (~34.7 days) overflows a 32-bit timer; Node would clamp it to 1 ms.
+    const target = await serve();
+    const warnings: string[] = [];
+    const onWarning = (warning: Error) => warnings.push(warning.name);
+    process.on("warning", onWarning);
+    const controller = new AbortController();
+    const compiled = compile([
+      { delay: { event: "customer.subscription.updated", byMs: 3_000_000_000 } },
+    ]);
+    const run = executePlan(compiled, adapter, {
+      url: target.url,
+      keys,
+      env,
+      signal: controller.signal,
+    });
+    await sleep(300);
+    expect(target.requests).toHaveLength(1);
+    controller.abort(new Error("cancelled"));
+    await expect(run).rejects.toThrow("cancelled");
+    process.off("warning", onWarning);
+    expect(target.requests).toHaveLength(1);
+    expect(warnings).not.toContain("TimeoutOverflowWarning");
+  });
+
   it("calls onDelivery as each delivery completes", async () => {
     const target = await serve();
     const seen: number[] = [];
