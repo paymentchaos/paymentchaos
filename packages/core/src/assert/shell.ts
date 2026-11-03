@@ -1,4 +1,5 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { Socket } from "node:net";
 import type { Readable } from "node:stream";
 import { messages } from "../messages.ts";
@@ -47,6 +48,97 @@ function collector() {
   };
 }
 
+/**
+ * Marks where the command's output ends. Node can report that the shell exited before it
+ * has read the shell's last output, so no timer can tell that output from what a
+ * background process writes afterwards. Instead this launcher, run by the same Node binary,
+ * runs the command through the shell exactly as `shell: true` would, waits for the shell to
+ * exit, and then writes a marker to stdout and stderr. A pipe keeps bytes in write order:
+ * everything written before the shell exited comes before the marker.
+ */
+const LAUNCHER = `
+const { spawn } = require("node:child_process");
+const { writeSync } = require("node:fs");
+const [command, marker, nodeOptions] = process.argv.slice(1);
+const env = { ...process.env };
+if (nodeOptions !== undefined) env.NODE_OPTIONS = nodeOptions;
+let done = false;
+const end = (code, signal) => {
+  if (done) return;
+  done = true;
+  writeSync(1, marker);
+  writeSync(2, marker);
+  if (signal) process.kill(process.pid, signal);
+  process.exit(code ?? 1);
+};
+const shell = spawn(command, { shell: true, env, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
+shell.on("error", (error) => {
+  writeSync(2, String(error.code ?? "spawn failed"));
+  end(127, null);
+});
+shell.on("exit", end);
+`;
+
+/** Launcher arguments, keeping NODE_OPTIONS away from the launcher but passing it on to the command. */
+function launcherArgs(command: string, marker: string, env: Record<string, string>) {
+  const launcherEnv: Record<string, string> = {};
+  let nodeOptions: string | undefined;
+  for (const [name, value] of Object.entries(env)) {
+    // Windows variable names are case-insensitive.
+    const isNodeOptions =
+      process.platform === "win32"
+        ? name.toUpperCase() === "NODE_OPTIONS"
+        : name === "NODE_OPTIONS";
+    if (isNodeOptions) nodeOptions = value;
+    else launcherEnv[name] = value;
+  }
+  const args = [
+    "-e",
+    LAUNCHER,
+    command,
+    marker,
+    ...(nodeOptions === undefined ? [] : [nodeOptions]),
+  ];
+  return { args, env: launcherEnv };
+}
+
+/** Collect a stream up to the marker, then drop everything after it. */
+function untilMarker(marker: Buffer, onDone: () => void) {
+  const out = collector();
+  let pending: Buffer = Buffer.alloc(0);
+  let done = false;
+  const complete = () => {
+    done = true;
+    onDone();
+  };
+  return {
+    get done() {
+      return done;
+    },
+    push(chunk: Buffer) {
+      if (done) return;
+      const bytes = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
+      const at = bytes.indexOf(marker);
+      if (at !== -1) {
+        out.push(bytes.subarray(0, at));
+        complete();
+        return;
+      }
+      // Hold back a possible partial marker until the next chunk.
+      const keep = Math.max(0, bytes.length - (marker.length - 1));
+      out.push(bytes.subarray(0, keep));
+      pending = bytes.subarray(keep);
+    },
+    /** The pipe closed without a marker: the launcher was killed. */
+    end() {
+      if (done) return;
+      out.push(pending);
+      complete();
+    },
+    text: out.text,
+  };
+}
+
 /** Kill the whole process tree: the shell plus whatever it started (npm, node, …). */
 function killTree(pid: number | undefined): void {
   if (pid === undefined) return;
@@ -62,26 +154,28 @@ function killTree(pid: number | undefined): void {
 }
 
 /**
- * The command is done when the shell exits, and its output is what it wrote before then.
- * Processes it left in the background keep running: their output is still read but
- * discarded, so they neither block on a full pipe nor fail with EPIPE, can't change the
- * verdict, and the pipes no longer keep PaymentChaos alive. A timeout or an abort before
+ * The command is done when its shell exits, and its output is what was written before then
+ * (or within the launcher's reaction time, well under a millisecond, after it). Processes it
+ * left in the background keep running: their later output is still read but discarded, so
+ * they neither block on a full pipe nor fail with EPIPE, can't change the verdict, and the
+ * pipes no longer keep PaymentChaos alive. A timeout or an abort before
  * every pipe closes kills the whole process group, background members included.
  */
 export function runShellCommand(command: string, options: ShellOptions): Promise<ShellResult> {
   const started = performance.now();
   return new Promise((resolve) => {
-    const stdout = collector();
-    const stderr = collector();
     let timedOut = false;
+    let killed = false;
+    let exited = false;
     let finished = false;
     let exitCode: number | null | undefined;
     let spawnError: string | undefined;
+    const marker = `paymentchaos-end-${randomUUID()}`;
+    const launcher = launcherArgs(command, marker, options.env);
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      child = spawn(command, {
-        shell: true,
-        env: options.env,
+      child = spawn(process.execPath, launcher.args, {
+        env: launcher.env,
         ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -107,15 +201,19 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
         ? undefined
         : setTimeout(() => {
             timedOut = true;
+            killed = true;
             killTree(child.pid);
           }, options.timeoutMs);
-    const onAbort = () => killTree(child.pid);
+    const onAbort = () => {
+      killed = true;
+      killTree(child.pid);
+    };
     options.signal?.addEventListener("abort", onAbort, { once: true });
     // A listener added to an already-aborted signal never fires.
     if (options.signal?.aborted === true) onAbort();
 
     const finish = () => {
-      if (finished) return;
+      if (finished || !exited) return;
       finished = true;
       if (timer !== undefined) clearTimeout(timer);
       // Pipes from `stdio: "pipe"` are sockets; typed as plain Readables.
@@ -131,24 +229,29 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
       });
     };
 
-    child.stdout.on("data", (chunk: Buffer) => {
-      if (!finished) stdout.push(chunk);
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      if (!finished) stderr.push(chunk);
-    });
+    const markerBytes = Buffer.from(marker);
+    const settled = () => {
+      if (stdout.done && stderr.done) finish();
+    };
+    const stdout = untilMarker(markerBytes, settled);
+    const stderr = untilMarker(markerBytes, settled);
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stdout.on("end", () => stdout.end());
+    child.stderr.on("end", () => stderr.end());
     child.on("error", (error) => {
       spawnError = error.message;
     });
     child.on("exit", (code) => {
       exitCode = code;
-      if (timer !== undefined) clearTimeout(timer);
-      // Bytes written before the exit are already in the pipe and are read by the end of the
-      // event-loop turn that reports it. Anything later comes from the background.
-      setImmediate(finish);
+      exited = true;
+      // A killed launcher writes no marker, and a background process may hold the pipes open.
+      if (killed) finish();
+      else settled();
     });
     child.on("close", (code) => {
       exitCode ??= code;
+      exited = true;
       options.signal?.removeEventListener("abort", onAbort);
       finish();
     });
