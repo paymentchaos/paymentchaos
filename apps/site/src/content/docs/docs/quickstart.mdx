@@ -3,14 +3,16 @@ title: Early-access Stripe quickstart
 description: Run the real Stripe renewal scenario against the naive and corrected example apps.
 ---
 
-PaymentChaos is not on npm yet. These instructions are for an early-access source
-checkout with Node 24.22.0 and Corepack available.
+PaymentChaos is not on npm yet. Use the public source checkout with Node 24.22.0 and
+Corepack available. No account or waitlist signup is needed to run the demo.
 
 ## Build the checkout
 
-From the repository root:
+Clone the repository and build it:
 
 ```sh
+git clone https://github.com/paymentchaos/paymentchaos.git
+cd paymentchaos
 corepack enable
 pnpm install --frozen-lockfile
 pnpm build
@@ -29,6 +31,17 @@ For seed `1337`, `stripe-express-naive` must fail because duplicate `invoice.pai
 deliveries create multiple entitlements and ledger rows. `stripe-express-correct`
 must pass with one of each. The demo command exits `0` only when both expected outcomes
 occur.
+
+To save JSON and JUnit reports for both apps, use an absolute output directory:
+
+```sh
+pnpm --filter @paymentchaos/golden-e2e demo:ci --out /absolute/path/to/demo-reports
+```
+
+On Windows, use an absolute Windows path such as `C:/temp/paymentchaos-reports`.
+Each CI run also saves these files as downloadable `demo-reports-…` artifacts. The naive
+reports contain expected assertion failures; the corrected reports pass. These are
+synthetic local tests, with no real charges or provider accounts.
 
 ## Run the CLI against an example yourself
 

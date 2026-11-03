@@ -1,5 +1,21 @@
 /** User-facing CLI strings (i18n-ready). */
 
+// Keyed by the `yaml` package's YAMLError codes.
+const yamlSyntaxHints: Readonly<Record<string, string>> = {
+  BAD_INDENT: "check the indentation and close any [ or { opened on or before this line",
+  MISSING_CHAR: "close the quote or bracket left open on or before this line",
+  DUPLICATE_KEY: "remove or rename the repeated key",
+  TAB_AS_INDENT: "indent with spaces, not tabs",
+  MULTIPLE_DOCS: "keep one YAML document per file; remove the extra --- separator",
+  BLOCK_AS_IMPLICIT_KEY: "put the key and its value on one line, or quote the key",
+  MULTILINE_IMPLICIT_KEY: "keep each key on a single line, or quote the key",
+  UNEXPECTED_TOKEN: "remove or quote the unexpected character near this location",
+};
+
+function yamlSyntaxHint(code: string): string {
+  return yamlSyntaxHints[code] ?? "fix the YAML syntax near this location";
+}
+
 export const messages = {
   usageHint: "Run paymentchaos run --help for usage.",
   configNotFound:
@@ -13,6 +29,16 @@ export const messages = {
     `No target URL for provider "${provider}". Add providers.${provider}.target.url to paymentchaos.config.yaml or set target in the scenario file.`,
   yamlValidation: (file: string, line: number, message: string, hint: string) =>
     `${file}:${line}: ${message} — ${hint}`,
+  // Syntax and alias errors never include the parser's text: it quotes the source line, which
+  // can hold a pasted literal secret.
+  yamlSyntax: (file: string, line: number, col: number, code: string) =>
+    `${file}:${line}:${col}: YAML syntax error (${code}) — ${yamlSyntaxHint(code)}`,
+  yamlUnknownKey: (file: string, line: number, col: number | undefined) =>
+    `${file}:${line}${col === undefined ? "" : `:${col}`}: unrecognized key — remove the unknown key or check its spelling against the schema`,
+  yamlUnresolvedAlias: (file: string, line: number, col: number) =>
+    `${file}:${line}:${col}: YAML alias has no matching anchor — define the anchor (&name) before the alias (*name) that uses it`,
+  yamlAliasLimit: (file: string, line: number, col: number) =>
+    `${file}:${line}:${col}: YAML aliases expand to too many nodes — write the values out instead of nesting aliases`,
   planHeading: (planHash: string) => `Plan ${planHash}`,
   planDelivery: (seq: number, eventType: string, eventId: string, attempt: number) =>
     `${seq}\t${eventType}\t${eventId}\tattempt ${attempt}`,
@@ -42,6 +68,8 @@ export const messages = {
   runArgAllowRemoteTarget: "Allow a non-local target hostname",
   runArgStableIds: "Disable per-run id nonce (needed to replay a selected repeat's ids)",
   runArgTimeoutMs: "Per-delivery HTTP timeout in milliseconds (default 10000)",
+  interrupted: (signal: string) =>
+    `Interrupted by ${signal}. Stopped the run and the hook and assertion commands it started; the interrupted scenario has no report.`,
 } as const;
 
 export const initMessages = {

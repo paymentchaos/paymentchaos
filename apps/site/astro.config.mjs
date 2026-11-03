@@ -1,7 +1,8 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
-const githubUrl = process.env.PUBLIC_GITHUB_URL?.trim();
+const githubUrl =
+  process.env.PUBLIC_GITHUB_URL?.trim() || "https://github.com/paymentchaos/paymentchaos";
 
 export default defineConfig({
   output: "static",

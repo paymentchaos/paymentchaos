@@ -35,12 +35,16 @@ All three are public. They are compiled into the static HTML, so never put a sec
 | --- | --- | --- |
 | `PUBLIC_LOOPS_FORM_ID` | For a working waitlist | The Loops form ID (the last path segment of the form endpoint). When it is unset, the page shows "The waitlist is temporarily unavailable" and ships no form script. |
 | `PUBLIC_LOOPS_DOUBLE_OPT_IN` | No | Set to `true` when double opt-in is enabled in Loops. The success message then tells the visitor to confirm from their inbox. The Loops response does not report this. |
-| `PUBLIC_GITHUB_URL` | No | The public repository URL. The GitHub links are only rendered when this is set. Leave it unset while the repository is private. |
+| `PUBLIC_GITHUB_URL` | No | Overrides the repository link. Defaults to `https://github.com/paymentchaos/paymentchaos` for the public validation launch. |
 
 ### Terminal demo transcript
 
 `src/data/demo.txt` is real output from `pnpm --filter @paymentchaos/golden-e2e demo`
-(seed 1337). Recapture it after the CLI output changes:
+(seed 1337). `public/demo.cast` contains the same captured output as an asciicast v2
+recording paced over 35 seconds for readability; its playback timing is not the runtime
+of the test. The landing page links both the transcript and downloadable recording.
+Replay the recording with `asciinema play apps/site/public/demo.cast` after installing
+asciinema separately. Recapture both files after the CLI output changes:
 
 ```sh
 pnpm build

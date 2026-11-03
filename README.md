@@ -16,7 +16,7 @@ Observed: 2
 
 ## Status
 
-**Private testing prototype.** Stripe, Razorpay and generic HMAC flows work from a local
+**Development prototype for early validation.** Stripe, Razorpay and generic HMAC flows work from a local
 checkout. The included demo catches duplicate business records in a naive app and passes
 the corrected app. Nothing is published to npm yet; use the local commands below.
 Failure reports print a reproduction command using the Node executable and CLI copy
@@ -36,6 +36,29 @@ pnpm --filter @paymentchaos/golden-e2e demo
 The first app deliberately fails with duplicate entitlement and ledger records. The
 corrected app passes. The demo starts isolated local apps and shuts them down afterward;
 it does not charge real payments.
+
+## Download CI demo reports
+
+Each [CI run](https://github.com/paymentchaos/paymentchaos/actions/workflows/ci.yml)
+builds the CLI and runs the included naive and corrected apps with both JSON and JUnit
+reporters. Open a completed run and download a `demo-reports-…` artifact for its OS and
+Node version. The artifacts are retained for 14 days. GitHub requires a signed-in account
+to download workflow artifacts.
+
+The naive reports deliberately contain failed business assertions (CLI exit `1`); the
+corrected reports pass (exit `0`). The demo job succeeds only when those expected outcomes
+match. A configuration error or missing report fails the job. Reports from a failed job
+may be incomplete, so always inspect the job result as well as the downloaded files.
+
+To generate the same reports locally after building, use a new output directory:
+
+```bash
+pnpm --filter @paymentchaos/golden-e2e demo:ci --out /absolute/path/to/demo-reports
+```
+
+The demo uses local example apps and synthetic data. For your own app, see the
+[report options](packages/cli/README.md#reports); check the CLI exit code and use fresh
+artifact paths, since an aborted invocation leaves an existing output file unchanged.
 
 ## Install the private beta
 

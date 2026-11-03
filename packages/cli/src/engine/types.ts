@@ -14,6 +14,8 @@ export interface RunEngineOptions {
   readonly env?: Env;
   /** Per-delivery HTTP timeout override (local simulation setting). */
   readonly timeoutMillis?: number;
+  /** Aborting stops sends and kills running hook and assertion commands. */
+  readonly signal?: AbortSignal;
 }
 
 export interface PlanEngineOptions {

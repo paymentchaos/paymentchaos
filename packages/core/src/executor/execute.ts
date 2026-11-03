@@ -71,6 +71,20 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
  * 1 ms (with a warning) and throws above that, so they are rejected up front.
  */
 const MAX_REQUEST_TIMEOUT_MS = 2_147_483_647;
+const MAX_TIMER_MS = MAX_REQUEST_TIMEOUT_MS;
+
+/**
+ * Sleep until `performance.now()` reaches `deadline`. Timers take at most 2^31 − 1 ms;
+ * Node turns anything longer into 1 ms, so long `delay` offsets are slept in chunks.
+ */
+async function sleepUntil(deadline: number, signal: AbortSignal | undefined): Promise<void> {
+  const signalOption = signal === undefined ? {} : { signal };
+  for (let wait = deadline - performance.now(); wait > 0; wait = deadline - performance.now()) {
+    await sleep(Math.min(wait, MAX_TIMER_MS), undefined, signalOption).catch((error: unknown) => {
+      throw signal?.reason ?? error;
+    });
+  }
+}
 
 /** Resolve and validate the local request timeout. Pure, so callers run it before any side effect. */
 export function resolveRequestTimeout(timeoutMillis: number | undefined): number {
@@ -218,18 +232,12 @@ export async function executePlan(
   };
 
   const startedAt = toIso8601(asInstant(now()));
-  const signalOption = options.signal === undefined ? {} : { signal: options.signal };
   const origin = performance.now();
   const outcomes: DeliveryOutcome[] = [];
   try {
     for (const step of steps(compiled.plan.deliveries)) {
       const first = step[0] as Delivery;
-      const wait = origin + first.sendOffsetMillis * timeScale - performance.now();
-      if (wait > 0) {
-        await sleep(wait, undefined, signalOption).catch((error: unknown) => {
-          throw options.signal?.reason ?? error;
-        });
-      }
+      await sleepUntil(origin + first.sendOffsetMillis * timeScale, options.signal);
       options.signal?.throwIfAborted();
       // Barrier: sign every member first, then release all requests in the same tick.
       const signed = step.map((d) => sign(d, asInstant(now())));
