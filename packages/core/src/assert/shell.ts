@@ -233,7 +233,11 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
       // background process may hold the pipes open.
       if (exited) finish();
     };
-    const onAbort = kill;
+    const onAbort = () => {
+      // The timeout would only try to kill the same tree again.
+      if (timer !== undefined) clearTimeout(timer);
+      kill();
+    };
     options.signal?.addEventListener("abort", onAbort, { once: true });
     // A listener added to an already-aborted signal never fires.
     if (options.signal?.aborted === true) onAbort();
