@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -6,6 +6,31 @@ import { runShellCommand } from "./shell.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "paymentchaos-shell-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+const node = (file: string) => `"${process.execPath}" "${file}"`;
+const kill = (pid: number) => {
+  try {
+    process.kill(pid);
+  } catch {
+    // Already gone.
+  }
+};
+
+/** A script that starts a detached process holding stdout and stderr open, then runs `rest`. */
+const holdPipes = (name: string, rest: string) => {
+  const file = join(dir, `${name}.mjs`);
+  writeFileSync(
+    file,
+    `import { spawn } from "node:child_process";
+     import { writeFileSync } from "node:fs";
+     const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"],
+       { stdio: ["ignore", "inherit", "inherit"], detached: true });
+     holder.unref();
+     writeFileSync(${JSON.stringify(join(dir, `${name}.pid`))}, String(holder.pid));
+     ${rest}`,
+  );
+  return { command: node(file), pidFile: join(dir, `${name}.pid`) };
+};
 
 const env = Object.fromEntries(
   Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -47,6 +72,62 @@ describe("runShellCommand", () => {
     await Promise.all(Array.from({ length: 48 }, worker));
     expect(failures).toEqual([]);
   }, 120_000);
+
+  it.skipIf(process.platform === "win32")(
+    "keeps output after the command prints its launcher's command line",
+    async () => {
+      const doc = JSON.stringify({ checks: [{ name: "business state", pass: false }] });
+      const result = await runShellCommand(
+        `ps -o args= -p "$PPID"; ps eww -o command= -p "$PPID"; printf '%s\\n' '${doc}'`,
+        { env, timeoutMs: 60_000 },
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trimEnd().endsWith(doc)).toBe(true);
+    },
+  );
+
+  it("runs a command that looks like a Node option through the shell", async () => {
+    const result = await runShellCommand("--version", { env, timeoutMs: 60_000 });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).not.toContain(process.version);
+  });
+
+  it("keeps the last output of a timed-out command whose pipes stay open", async () => {
+    const { command, pidFile } = holdPipes(
+      "held-timeout",
+      `process.stdout.write("foreground diagnostic\\n");
+       process.stderr.write("stderr diagnostic\\n");
+       setTimeout(() => {}, 60000);`,
+    );
+    const result = await runShellCommand(command, { env, timeoutMs: 1_000 });
+    kill(Number(readFileSync(pidFile, "utf8")));
+    expect(result.timedOut).toBe(true);
+    expect(result.stdout).toBe("foreground diagnostic\n");
+    expect(result.stderr).toBe("stderr diagnostic\n");
+  });
+
+  // POSIX only: the script finds the launcher, its parent or grandparent, with ps.
+  it.skipIf(process.platform === "win32")(
+    "times out when the launcher dies without a marker and the pipes stay open",
+    async () => {
+      const { command, pidFile } = holdPipes(
+        "launcher-crash",
+        `import { execFileSync } from "node:child_process";
+         process.stdout.write("before crash\\n");
+         const ps = (field, pid) => execFileSync("ps", ["-o", field + "=", "-p", String(pid)], { encoding: "utf8" }).trim();
+         const launcher = ps("args", process.ppid).includes(" -e ") ? process.ppid : Number(ps("ppid", process.ppid));
+         process.kill(launcher, "SIGKILL");
+         setTimeout(() => {}, 60000);`,
+      );
+      const started = performance.now();
+      const result = await runShellCommand(command, { env, timeoutMs: 500 });
+      kill(Number(readFileSync(pidFile, "utf8")));
+      expect(result.timedOut).toBe(true);
+      expect(result.stdout).toBe("before crash\n");
+      expect(performance.now() - started).toBeLessThan(5_000);
+    },
+    20_000,
+  );
 
   it("passes NODE_OPTIONS to the command but not to its launcher", async () => {
     const preload = join(dir, "preload.cjs");
