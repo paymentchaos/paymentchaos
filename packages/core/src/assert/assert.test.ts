@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -212,6 +212,45 @@ describe("runCommandAssertion", () => {
     expect(performance.now() - started).toBeLessThan(5000);
   });
 
+  it("kills the whole tree, grandchildren included, when aborted while the shell runs", async () => {
+    const pidFile = join(dir, "tree-abort.pid");
+    const controller = new AbortController();
+    const run = runCommandAssertion(
+      script(
+        "tree-abort",
+        `import { spawn } from "node:child_process";
+         import { writeFileSync } from "node:fs";
+         // Detached on Windows so only taskkill /T, not this script's exit, can end it.
+         const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"],
+           { stdio: "ignore", detached: process.platform === "win32" });
+         writeFileSync(process.argv[2], String(child.pid));
+         setTimeout(() => {}, 60000);`,
+        pidFile,
+      ),
+      { metadata, signal: controller.signal },
+    );
+    const rejected = expect(run).rejects.toThrow();
+    let pid: number | undefined;
+    for (let i = 0; i < 200 && pid === undefined; i++) {
+      await sleep(50);
+      if (existsSync(pidFile)) pid = Number(readFileSync(pidFile, "utf8"));
+    }
+    expect(pid).toBeGreaterThan(0);
+    controller.abort(new Error("interrupted"));
+    await rejected;
+    let gone = false;
+    for (let i = 0; i < 100 && !gone; i++) {
+      try {
+        process.kill(pid as number, 0);
+        await sleep(50);
+      } catch {
+        gone = true;
+      }
+    }
+    if (!gone) process.kill(pid as number);
+    expect(gone).toBe(true);
+  }, 20_000);
+
   describe("a command that leaves a process in the background", () => {
     // The background child inherits stdout, stays quiet until the command has finished,
     // then floods the pipe: it must neither stall the command nor die of EPIPE.
@@ -279,6 +318,7 @@ describe("runCommandAssertion", () => {
       expect(outcome.stderrTail).not.toContain("late");
     });
 
+    // Windows has no process group to reach it through once the shell has exited.
     it.skipIf(process.platform === "win32")(
       "kills the leftover process group when the run is aborted",
       async () => {

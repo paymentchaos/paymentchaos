@@ -1,4 +1,4 @@
-import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { Socket } from "node:net";
 import type { Readable, Writable } from "node:stream";
@@ -141,15 +141,23 @@ function untilMarker(marker: Buffer, onDone: () => void) {
   };
 }
 
-/** Kill the whole process tree: the shell plus whatever it started (npm, node, …). */
+/**
+ * Kill the whole process tree: the shell plus whatever it started (npm, node, …). On Windows
+ * this waits for `taskkill`, so the tree is gone before the run goes on or PaymentChaos exits.
+ */
 function killTree(pid: number | undefined): void {
   if (pid === undefined) return;
+  if (process.platform === "win32") {
+    // Fails harmlessly if the shell has already exited.
+    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+      timeout: 10_000,
+    });
+    return;
+  }
   try {
-    if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-    } else {
-      process.kill(-pid, "SIGKILL");
-    }
+    process.kill(-pid, "SIGKILL");
   } catch {
     // Already exited.
   }
@@ -163,6 +171,10 @@ function killTree(pid: number | undefined): void {
  * they neither block on a full pipe nor fail with EPIPE, can't change the verdict, and the
  * pipes no longer keep PaymentChaos alive. A timeout or an abort before
  * every pipe closes kills the whole process group, background members included.
+ *
+ * Windows has no process groups, so there a timeout or an abort reaches only what is still a
+ * descendant of a running command. `taskkill /T` walks parent PIDs, which lead nowhere once the
+ * shell and its launcher have exited, so processes left in the background keep running.
  */
 export function runShellCommand(command: string, options: ShellOptions): Promise<ShellResult> {
   const started = performance.now();
@@ -214,7 +226,9 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
           }, options.timeoutMs);
     const kill = () => {
       killed = true;
-      killTree(child.pid);
+      // On Windows an exited launcher's PID no longer leads taskkill to the tree and may belong
+      // to another process by now. On POSIX the process group outlives its leader.
+      if (!(process.platform === "win32" && exited)) killTree(child.pid);
       // A launcher that already exited without a marker sends no further event, and a
       // background process may hold the pipes open.
       if (exited) finish();
