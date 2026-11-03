@@ -196,7 +196,7 @@ export async function runScenario(
       timeoutMs: commandTimeoutMs,
     });
     options.signal?.throwIfAborted();
-    if (result.exitCode !== 0) {
+    if (result.exitCode !== 0 || result.timedOut) {
       // Hook output is JSON or text like assertion output, so escaped secrets are decoded first.
       const stderr = redactCommandText(result.spawnError ?? result.stderr, redact)
         .trim()
