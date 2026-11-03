@@ -54,7 +54,8 @@ describe("runShellCommand", () => {
     const probe = join(dir, "probe.mjs");
     writeFileSync(probe, `console.log("ran:" + process.pid);`);
     const result = await runShellCommand(`"${process.execPath}" "${probe}"`, {
-      env: { ...env, NODE_OPTIONS: `--require "${preload}"` },
+      // NODE_OPTIONS treats a backslash inside quotes as an escape; Windows accepts "/".
+      env: { ...env, NODE_OPTIONS: `--require "${preload.replaceAll("\\", "/")}"` },
       timeoutMs: 60_000,
     });
     expect(result.exitCode).toBe(0);
