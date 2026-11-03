@@ -203,13 +203,7 @@ export async function runScenario(
         .slice(-2000);
       throw new PaymentChaosError(
         "CONFIG_INVALID",
-        messages.hookFailed(
-          phase,
-          redactCommandText(command, redact),
-          result.exitCode,
-          result.timedOut,
-          stderr,
-        ),
+        messages.hookFailed(phase, result.exitCode, result.timedOut, stderr),
         {
           details: { phase, exitCode: result.exitCode },
         },
