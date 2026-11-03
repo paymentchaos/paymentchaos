@@ -5,6 +5,7 @@ import { createPlanCommand } from "./commands/plan.ts";
 import { createRunCommand } from "./commands/run.ts";
 import { ExitCode, exitCodeFor } from "./exit.ts";
 import { normalizeSeedArgs } from "./flags.ts";
+import { exitForSignal, Interrupted } from "./interrupt.ts";
 
 const { version } = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -65,6 +66,11 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
     await runCommand(main, { rawArgs: normalizeSeedArgs(argv) });
   } catch (error) {
+    if (error instanceof Interrupted) {
+      // Re-raise only once stderr has flushed: pipes are asynchronous on some platforms.
+      process.stderr.write(`${error.message}\n`, () => exitForSignal(error.signal));
+      return;
+    }
     if (isUsageError(error)) {
       await printUsage(...usageTarget(argv));
     }

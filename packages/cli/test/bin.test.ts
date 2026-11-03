@@ -377,3 +377,80 @@ describe("machine reports from the built CLI entry point", () => {
     },
   );
 });
+
+describe("interrupting the built CLI", () => {
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // POSIX only: Windows has no catchable SIGTERM, and Ctrl-C there reaches the whole console.
+  it.skipIf(process.platform === "win32").each([
+    ["SIGINT", "assert"],
+    ["SIGTERM", "hook"],
+  ] as const)(
+    "%s stops the run and kills a running %s command's process tree",
+    async (signal, where) => {
+      const cwd = await mkdtemp(path.join(tmpdir(), "paymentchaos interrupt "));
+      const server = await startRecordingServer();
+      const pids = path.join(cwd, "pids.txt");
+      // The command and a grandchild it starts both outlive a CLI that dies without cleanup.
+      await writeFile(
+        path.join(cwd, "slow.mjs"),
+        `import { spawn } from "node:child_process";
+       import { writeFileSync } from "node:fs";
+       const sleeper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 300000)"], { stdio: "ignore" });
+       writeFileSync(${JSON.stringify(pids)}, process.pid + " " + sleeper.pid);
+       setTimeout(() => {}, 300000);`,
+      );
+      const command = "node slow.mjs";
+      try {
+        await writeFile(
+          path.join(cwd, "paymentchaos.config.yaml"),
+          stringify({
+            version: 1,
+            providers: {
+              stripe: { target: { url: server.url, secret: "${PAYMENTCHAOS_TEST_SECRET}" } },
+            },
+            ...(where === "hook" ? { hooks: { beforeEach: command } } : { assert: { command } }),
+          }),
+        );
+        const child = spawn(process.execPath, [binJs, "run", "stripe-one-time-payment"], {
+          cwd,
+          env: { ...process.env, PAYMENTCHAOS_TEST_SECRET: secret, NO_COLOR: "1" },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stderr = "";
+        child.stderr.on("data", (chunk) => {
+          stderr += chunk;
+        });
+        const exited = new Promise<[number | null, NodeJS.Signals | null]>((resolve) =>
+          child.on("exit", (code, sig) => resolve([code, sig])),
+        );
+        let started: number[] = [];
+        for (let i = 0; i < 200 && started.length < 2; i++) {
+          await new Promise((r) => setTimeout(r, 50));
+          started = await readFile(pids, "utf8").then(
+            (text) => text.split(" ").map(Number),
+            () => [],
+          );
+        }
+        expect(started).toHaveLength(2);
+        child.kill(signal);
+        const [code, received] = await exited;
+        expect([code, received]).toEqual([null, signal]);
+        expect(stderr).toContain(`Interrupted by ${signal}`);
+        await new Promise((r) => setTimeout(r, 200));
+        expect(started.filter(alive)).toEqual([]);
+        expect(server.requests).toHaveLength(where === "hook" ? 0 : 4);
+      } finally {
+        await server.close();
+        await rm(cwd, { recursive: true, force: true });
+      }
+    },
+  );
+});
