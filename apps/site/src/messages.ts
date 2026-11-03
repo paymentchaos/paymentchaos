@@ -5,7 +5,10 @@ export const siteMessages = {
   navHowItWorks: "How it works",
   navDocs: "Docs",
   navEarlyAccess: "Early access",
-  footerTagline: "PaymentChaos is a private prototype. No analytics. No trackers.",
+  footerTagline: "PaymentChaos is an open-source prototype. No analytics. No trackers.",
+  prototypeStatus: "Open-source prototype · early validation",
+  validationIntro:
+    "Try the source checkout today. PaymentChaos is not published to npm yet. Join the list for early-access updates and guided testing.",
   footerNav: "Footer navigation",
   footerDocs: "Documentation",
   footerPrivacy: "Privacy",
@@ -13,7 +16,17 @@ export const siteMessages = {
   ctaWaitlist: "Join the waitlist",
   ctaDocs: "Read the docs",
   ctaGithub: "View on GitHub",
+  ctaTryDemo: "Try the demo",
   demoLabel: "PaymentChaos seed 1337 terminal output",
+  demoRecording: "Download the 35-second terminal recording (.cast)",
+  demoRecordingNote:
+    "Captured CLI output, paced for readability. Replay with asciinema play demo.cast.",
+  privacyContactHeading: "Who to contact",
+  privacyContact:
+    "The PaymentChaos project operates this waitlist. For privacy questions, access requests, or deletion requests, contact",
+  privacyHostingHeading: "Website hosting",
+  privacyHosting:
+    "AWS Amplify hosts this website. AWS processes request information such as IP addresses, request paths, timestamps, and browser information to deliver and protect the site. Hosting access logs may contain these details; they are separate from the Loops mailing list and are not used by PaymentChaos for advertising or behavioral profiling.",
 } as const;
 
 export const waitlistMessages = {
@@ -27,7 +40,7 @@ export const waitlistMessages = {
   button: "Join the waitlist",
   buttonPending: "Joining…",
   pending: "Joining the waitlist…",
-  success: "You’re on the early-access list. We’ll email you when guided access opens.",
+  success: "You’re on the early-access list. We’ll email you updates about guided testing.",
   successConfirm:
     "Almost done. Check your inbox and select the confirmation link to join the early-access list.",
   invalidEmail: "Enter a valid email address.",

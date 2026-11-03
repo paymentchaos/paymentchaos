@@ -1,6 +1,8 @@
 ---
 // biome-ignore lint/correctness/noUnusedImports: Astro renders this component in the template.
 import BaseLayout from "../layouts/BaseLayout.astro";
+// biome-ignore lint/correctness/noUnusedImports: Astro templates use this value.
+import { siteMessages } from "../messages.ts";
 ---
 
 <BaseLayout
@@ -14,6 +16,12 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       This notice covers the PaymentChaos early-access waitlist. The website uses no analytics,
       advertising trackers, or behavioral profiling.
     </p>
+
+    <h2>{siteMessages.privacyContactHeading}</h2>
+    <p>{siteMessages.privacyContact} <a href="mailto:hello@paymentchaos.com">hello@paymentchaos.com</a>.</p>
+
+    <h2>{siteMessages.privacyHostingHeading}</h2>
+    <p>{siteMessages.privacyHosting}</p>
 
     <h2>What is stored and why</h2>
     <p>
