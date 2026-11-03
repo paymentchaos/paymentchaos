@@ -11,13 +11,6 @@ import { messages } from "../messages.ts";
 
 const OUTPUT_LIMIT = 1024 * 1024;
 
-/**
- * How long to keep reading output after the shell exits when something it started in the
- * background still holds stdout or stderr open (`npm start &`). Output the shell wrote
- * before exiting is already in the pipe, so this only bounds the wait for it to be read.
- */
-export const EXIT_DRAIN_MS = 250;
-
 export interface ShellOptions {
   readonly env: Record<string, string>;
   readonly cwd?: string;
@@ -69,10 +62,11 @@ function killTree(pid: number | undefined): void {
 }
 
 /**
- * The command is done when the shell exits. Processes it left in the background keep
- * running: their output is still read but discarded, so they neither block on a full pipe
- * nor fail with EPIPE, and the pipes no longer keep PaymentChaos alive. A timeout or an
- * abort before every pipe closes kills the whole process group, background members included.
+ * The command is done when the shell exits, and its output is what it wrote before then.
+ * Processes it left in the background keep running: their output is still read but
+ * discarded, so they neither block on a full pipe nor fail with EPIPE, can't change the
+ * verdict, and the pipes no longer keep PaymentChaos alive. A timeout or an abort before
+ * every pipe closes kills the whole process group, background members included.
  */
 export function runShellCommand(command: string, options: ShellOptions): Promise<ShellResult> {
   const started = performance.now();
@@ -115,7 +109,6 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
             timedOut = true;
             killTree(child.pid);
           }, options.timeoutMs);
-    let drain: NodeJS.Timeout | undefined;
     const onAbort = () => killTree(child.pid);
     options.signal?.addEventListener("abort", onAbort, { once: true });
     // A listener added to an already-aborted signal never fires.
@@ -125,7 +118,6 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
       if (finished) return;
       finished = true;
       if (timer !== undefined) clearTimeout(timer);
-      if (drain !== undefined) clearTimeout(drain);
       // Pipes from `stdio: "pipe"` are sockets; typed as plain Readables.
       (child.stdout as Socket).unref();
       (child.stderr as Socket).unref();
@@ -151,7 +143,9 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
     child.on("exit", (code) => {
       exitCode = code;
       if (timer !== undefined) clearTimeout(timer);
-      drain = setTimeout(finish, EXIT_DRAIN_MS);
+      // Bytes written before the exit are already in the pipe and are read by the end of the
+      // event-loop turn that reports it. Anything later comes from the background.
+      setImmediate(finish);
     });
     child.on("close", (code) => {
       exitCode ??= code;

@@ -253,6 +253,32 @@ describe("runCommandAssertion", () => {
       }
     });
 
+    it("ignores output the background process writes after the shell exits", async () => {
+      // A failing result written 100 ms after the command exits must not change its verdict.
+      const outcome = await runCommandAssertion(
+        script(
+          "bg-late-output",
+          `import { spawn } from "node:child_process";
+           const child = spawn(process.execPath, ["-e", \`
+             const parent = Number(process.argv[1]);
+             const poll = setInterval(() => {
+               try { process.kill(parent, 0); return; } catch {}
+               clearInterval(poll);
+               const late = JSON.stringify({ checks: [{ name: "late", pass: false }] });
+               setTimeout(() => { console.log(late); console.error(late); }, 100);
+             }, 5);\`, String(process.pid)],
+             { stdio: ["ignore", "inherit", "inherit"], detached: process.platform === "win32" });
+           child.unref();
+           console.log(JSON.stringify({ checks: [{ name: "own", pass: true }] }));`,
+        ),
+        { metadata, timeoutMs: 20_000 },
+      );
+      expect(outcome).toMatchObject({ pass: true, exitCode: 0, timedOut: false });
+      expect(outcome.checks).toEqual([{ name: "own", pass: true }]);
+      expect(outcome.stdoutTail).not.toContain("late");
+      expect(outcome.stderrTail).not.toContain("late");
+    });
+
     it.skipIf(process.platform === "win32")(
       "kills the leftover process group when the run is aborted",
       async () => {
