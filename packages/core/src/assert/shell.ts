@@ -1,6 +1,7 @@
-import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { type ChildProcessByStdio, spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { Socket } from "node:net";
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import { messages } from "../messages.ts";
 
 /**
@@ -10,13 +11,6 @@ import { messages } from "../messages.ts";
  */
 
 const OUTPUT_LIMIT = 1024 * 1024;
-
-/**
- * How long to keep reading output after the shell exits when something it started in the
- * background still holds stdout or stderr open (`npm start &`). Output the shell wrote
- * before exiting is already in the pipe, so this only bounds the wait for it to be read.
- */
-export const EXIT_DRAIN_MS = 250;
 
 export interface ShellOptions {
   readonly env: Record<string, string>;
@@ -54,50 +48,148 @@ function collector() {
   };
 }
 
-/** Kill the whole process tree: the shell plus whatever it started (npm, node, …). */
+/**
+ * Marks where the command's output ends. Node can report that the shell exited before it
+ * has read the shell's last output, so no timer can tell that output from what a
+ * background process writes afterwards. Instead this launcher, run by the same Node binary,
+ * runs the command through the shell exactly as `shell: true` would, blocks until the shell
+ * exits, and then writes a marker to stdout and stderr. A pipe keeps bytes in write order:
+ * everything written before the shell exited comes before the marker.
+ *
+ * The command, marker and NODE_OPTIONS arrive on stdin, not in argv or the environment: the
+ * command can't see the marker (`ps` shows argv), and Node can't mistake a command such as
+ * `--version` for one of its own options.
+ */
+const LAUNCHER = `
+const { spawnSync } = require("node:child_process");
+const { writeSync } = require("node:fs");
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => { input += chunk; });
+process.stdin.on("end", () => {
+  const { command, marker, nodeOptions } = JSON.parse(input);
+  const env = { ...process.env };
+  if (nodeOptions !== undefined) env.NODE_OPTIONS = nodeOptions;
+  let result;
+  try {
+    result = spawnSync(command, { shell: true, env, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
+  } catch (error) {
+    result = { error };
+  }
+  if (result.error) writeSync(2, String(result.error.code ?? "spawn failed"));
+  writeSync(1, marker);
+  writeSync(2, marker);
+  if (result.signal) {
+    process.kill(process.pid, result.signal);
+    // Node ignores SIGPIPE and handles SIGUSR1, so those would otherwise read as exit 1.
+    process.kill(process.pid, "SIGKILL");
+  }
+  process.exit(result.error ? 127 : (result.status ?? 1));
+});
+`;
+
+/** What the launcher reads from stdin, and its environment without NODE_OPTIONS. */
+function launcherInput(command: string, marker: string, env: Record<string, string>) {
+  const launcherEnv: Record<string, string> = {};
+  let nodeOptions: string | undefined;
+  for (const [name, value] of Object.entries(env)) {
+    // Windows variable names are case-insensitive.
+    const isNodeOptions =
+      process.platform === "win32"
+        ? name.toUpperCase() === "NODE_OPTIONS"
+        : name === "NODE_OPTIONS";
+    if (isNodeOptions) nodeOptions = value;
+    else launcherEnv[name] = value;
+  }
+  return { stdin: JSON.stringify({ command, marker, nodeOptions }), env: launcherEnv };
+}
+
+/** Collect a stream up to the marker, then drop everything after it. */
+function untilMarker(marker: Buffer, onDone: () => void) {
+  const out = collector();
+  let pending: Buffer = Buffer.alloc(0);
+  let done = false;
+  const complete = () => {
+    done = true;
+    onDone();
+  };
+  return {
+    get done() {
+      return done;
+    },
+    push(chunk: Buffer) {
+      if (done) return;
+      const bytes = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
+      const at = bytes.indexOf(marker);
+      if (at !== -1) {
+        out.push(bytes.subarray(0, at));
+        complete();
+        return;
+      }
+      // Hold back a possible partial marker until the next chunk.
+      const keep = Math.max(0, bytes.length - (marker.length - 1));
+      out.push(bytes.subarray(0, keep));
+      pending = bytes.subarray(keep);
+    },
+    /** The pipe closed, or the result is final, without a marker: keep what was held back. */
+    end() {
+      if (done) return;
+      out.push(pending);
+      complete();
+    },
+    text: out.text,
+  };
+}
+
+/**
+ * Kill the whole process tree: the shell plus whatever it started (npm, node, …). On Windows
+ * this waits for `taskkill`, so the tree is gone before the run goes on or PaymentChaos exits.
+ */
 function killTree(pid: number | undefined): void {
   if (pid === undefined) return;
+  if (process.platform === "win32") {
+    // Fails harmlessly if the shell has already exited.
+    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+      timeout: 10_000,
+    });
+    return;
+  }
   try {
-    if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-    } else {
-      process.kill(-pid, "SIGKILL");
-    }
+    process.kill(-pid, "SIGKILL");
   } catch {
     // Already exited.
   }
 }
 
 /**
- * The command is done when the shell exits. Processes it left in the background keep
- * running: their output is still read but discarded, so they neither block on a full pipe
- * nor fail with EPIPE, and the pipes no longer keep PaymentChaos alive. A timeout or an
- * abort before every pipe closes kills the whole process group, background members included.
+ * The command is done when its shell exits, and its output is what was written before then
+ * (or within the launcher's reaction time after it: usually well under a millisecond, a few
+ * milliseconds on a loaded machine). Processes it
+ * left in the background keep running: their later output is still read but discarded, so
+ * they neither block on a full pipe nor fail with EPIPE, can't change the verdict, and the
+ * pipes no longer keep PaymentChaos alive. A timeout or an abort before
+ * every pipe closes kills the whole process group, background members included.
+ *
+ * Windows has no process groups, so there a timeout or an abort reaches only what is still a
+ * descendant of a running command. `taskkill /T` walks parent PIDs, which lead nowhere once the
+ * shell and its launcher have exited, so processes left in the background keep running.
  */
 export function runShellCommand(command: string, options: ShellOptions): Promise<ShellResult> {
   const started = performance.now();
   return new Promise((resolve) => {
-    const stdout = collector();
-    const stderr = collector();
     let timedOut = false;
+    let killed = false;
+    let exited = false;
     let finished = false;
     let exitCode: number | null | undefined;
     let spawnError: string | undefined;
-    let child: ChildProcessByStdio<null, Readable, Readable>;
-    try {
-      child = spawn(command, {
-        shell: true,
-        env: options.env,
-        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-        // Own process group on POSIX so a timeout or abort can kill the whole tree.
-        detached: process.platform !== "win32",
-      });
-    } catch (error) {
-      // Node's argument errors (a NUL byte, say) quote the whole command, which may hold a
-      // credential, so only the error code is kept.
-      const code = (error as NodeJS.ErrnoException).code;
+    const marker = `paymentchaos-end-${randomUUID()}`;
+    const launcher = launcherInput(command, marker, options.env);
+    // Node's argument errors (a NUL byte, say) quote the whole command, which may hold a
+    // credential, so only the error code is kept.
+    const notStarted = (code: unknown) =>
       resolve({
         exitCode: null,
         timedOut: false,
@@ -106,6 +198,23 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
         durationMs: performance.now() - started,
         spawnError: messages.commandNotStarted(typeof code === "string" ? code : "unknown"),
       });
+    // The launcher would refuse these too, but too late to report it as not started.
+    if (command === "" || command.includes("\0")) {
+      notStarted("ERR_INVALID_ARG_VALUE");
+      return;
+    }
+    let child: ChildProcessByStdio<Writable, Readable, Readable>;
+    try {
+      child = spawn(process.execPath, ["-e", LAUNCHER], {
+        env: launcher.env,
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+        // Own process group on POSIX so a timeout or abort can kill the whole tree.
+        detached: process.platform !== "win32",
+      });
+    } catch (error) {
+      notStarted((error as NodeJS.ErrnoException).code);
       return;
     }
     const timer =
@@ -113,19 +222,32 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
         ? undefined
         : setTimeout(() => {
             timedOut = true;
-            killTree(child.pid);
+            kill();
           }, options.timeoutMs);
-    let drain: NodeJS.Timeout | undefined;
-    const onAbort = () => killTree(child.pid);
+    const kill = () => {
+      killed = true;
+      // On Windows an exited launcher's PID no longer leads taskkill to the tree and may belong
+      // to another process by now. On POSIX the process group outlives its leader.
+      if (!(process.platform === "win32" && exited)) killTree(child.pid);
+      // A launcher that already exited without a marker sends no further event, and a
+      // background process may hold the pipes open.
+      if (exited) finish();
+    };
+    const onAbort = () => {
+      // The timeout would only try to kill the same tree again.
+      if (timer !== undefined) clearTimeout(timer);
+      kill();
+    };
     options.signal?.addEventListener("abort", onAbort, { once: true });
     // A listener added to an already-aborted signal never fires.
     if (options.signal?.aborted === true) onAbort();
 
     const finish = () => {
-      if (finished) return;
+      if (finished || !exited) return;
       finished = true;
       if (timer !== undefined) clearTimeout(timer);
-      if (drain !== undefined) clearTimeout(drain);
+      stdout.end();
+      stderr.end();
       // Pipes from `stdio: "pipe"` are sockets; typed as plain Readables.
       (child.stdout as Socket).unref();
       (child.stderr as Socket).unref();
@@ -139,22 +261,32 @@ export function runShellCommand(command: string, options: ShellOptions): Promise
       });
     };
 
-    child.stdout.on("data", (chunk: Buffer) => {
-      if (!finished) stdout.push(chunk);
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      if (!finished) stderr.push(chunk);
-    });
+    const markerBytes = Buffer.from(marker);
+    const settled = () => {
+      if (stdout.done && stderr.done) finish();
+    };
+    const stdout = untilMarker(markerBytes, settled);
+    const stderr = untilMarker(markerBytes, settled);
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stdout.on("end", () => stdout.end());
+    child.stderr.on("end", () => stderr.end());
+    // The launcher may die before reading its input.
+    child.stdin.on("error", () => {});
+    child.stdin.end(launcher.stdin);
     child.on("error", (error) => {
       spawnError = error.message;
     });
     child.on("exit", (code) => {
       exitCode = code;
-      if (timer !== undefined) clearTimeout(timer);
-      drain = setTimeout(finish, EXIT_DRAIN_MS);
+      exited = true;
+      // A killed launcher writes no marker, and a background process may hold the pipes open.
+      if (killed) finish();
+      else settled();
     });
     child.on("close", (code) => {
       exitCode ??= code;
+      exited = true;
       options.signal?.removeEventListener("abort", onAbort);
       finish();
     });
