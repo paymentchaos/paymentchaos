@@ -94,14 +94,14 @@ export const messages = {
     `repeatIndex must be a whole number from 1 to ${String(repeat)} (the repeat count), got ${String(index)}. Pass the same --repeat as the original run, or omit --repeat-index to run every repetition.`,
   repeatSelected: (index: number, repeat: number, stableIds: boolean) =>
     `Ran only repetition ${String(index)} of ${String(repeat)}; counts cover that one run. It uses that repetition's index and the same seed and plan hash${stableIds ? " and ids" : ", with fresh ids (add stableIds to reuse them)"}. Concurrent deliveries interleave nondeterministically, so it may not reproduce the original outcome.`,
-  hookFailed: (
-    phase: string,
-    command: string,
-    exitCode: number | null,
-    timedOut: boolean,
-    stderr: string,
-  ) =>
-    `hooks.${phase} command \`${command}\` ${timedOut ? "timed out" : `exited with ${exitCode === null ? "a signal" : String(exitCode)}`}.${stderr === "" ? "" : ` stderr: ${stderr}`} Fix the hook so it exits 0.`,
+  // The command is not echoed: it may carry a credential that isn't a signing secret, so
+  // redaction can't catch it. The phase names the line in the scenario file.
+  hookFailed: (phase: string, exitCode: number | null, timedOut: boolean, stderr: string) =>
+    `hooks.${phase} command ${timedOut ? "timed out" : `exited with ${exitCode === null ? "a signal" : String(exitCode)}`}.${stderr === "" ? "" : ` stderr: ${stderr}`} Fix the hook so it exits 0.`,
+  hookNotStarted: (phase: string, reason: string) =>
+    `hooks.${phase} command could not be started: ${reason} Fix the hook command.`,
+  commandNotStarted: (code: string) =>
+    `Node.js could not pass the command to the shell (${code}). Check it for characters a command line can't hold, such as a NUL byte.`,
   planHashDrift: () =>
     "The plan hash changed between repetitions of one run. Planning must be deterministic; this is a bug in PaymentChaos or the provider adapter.",
   httpAssertNotYetSupported: () =>

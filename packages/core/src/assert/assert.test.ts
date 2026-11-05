@@ -183,6 +183,26 @@ describe("runCommandAssertion", () => {
     expect(commandAssertionResults(outcome)[0]?.message).toMatch(/timed out/);
   });
 
+  it("fails a command Node.js refuses to start without quoting it", async () => {
+    const secret = "whsec_synthetic_nul";
+    const other = "synthetic_app_token_7f3a";
+    const outcome = await runCommandAssertion(`echo ${secret} ${other}\u0000`, {
+      metadata,
+      redact: [secret],
+    });
+    expect(outcome).toMatchObject({ pass: false, exitCode: null, timedOut: false });
+    expect(outcome.stderrTail).toContain("ERR_INVALID_ARG_VALUE");
+    // `outcome.command` is the caller's own input; reports are built from the results and tails.
+    const { command: _input, ...reported } = outcome;
+    for (const text of [
+      JSON.stringify(reported),
+      JSON.stringify(commandAssertionResults(outcome)),
+    ]) {
+      expect(text).not.toContain(secret);
+      expect(text).not.toContain(other);
+    }
+  });
+
   it("kills a command started after the run was already aborted", async () => {
     const started = performance.now();
     const signal = AbortSignal.abort(new Error("interrupted"));

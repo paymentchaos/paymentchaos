@@ -196,20 +196,19 @@ export async function runScenario(
       timeoutMs: commandTimeoutMs,
     });
     options.signal?.throwIfAborted();
-    if (result.exitCode !== 0 || result.timedOut) {
-      // Hook output is JSON or text like assertion output, so escaped secrets are decoded first.
-      const stderr = redactCommandText(result.spawnError ?? result.stderr, redact)
-        .trim()
-        .slice(-2000);
+    if (result.spawnError !== undefined) {
       throw new PaymentChaosError(
         "CONFIG_INVALID",
-        messages.hookFailed(
-          phase,
-          redactCommandText(command, redact),
-          result.exitCode,
-          result.timedOut,
-          stderr,
-        ),
+        messages.hookNotStarted(phase, redactCommandText(result.spawnError, redact)),
+        { details: { phase, exitCode: result.exitCode } },
+      );
+    }
+    if (result.exitCode !== 0 || result.timedOut) {
+      // Hook output is JSON or text like assertion output, so escaped secrets are decoded first.
+      const stderr = redactCommandText(result.stderr, redact).trim().slice(-2000);
+      throw new PaymentChaosError(
+        "CONFIG_INVALID",
+        messages.hookFailed(phase, result.exitCode, result.timedOut, stderr),
         {
           details: { phase, exitCode: result.exitCode },
         },

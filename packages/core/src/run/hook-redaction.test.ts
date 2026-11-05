@@ -82,12 +82,37 @@ describe("failed hook output", () => {
     });
   }
 
-  it("redacts a known secret written literally into the hook command", async () => {
-    const file = join(dir, "argv-hook.cjs");
-    writeFileSync(file, "process.exit(1);");
-    const hook = `"${process.execPath}" "${file}" ${JSON.stringify(SECRET)}`;
-    const error = await hookError("beforeEach", hook);
-    expect(error.message).toContain(REDACTED);
-    expect(error.message).not.toContain("synthetic/hook");
-  });
+  it.each(["beforeEach", "afterEach"] as const)(
+    "leaves the %s command, and any credential written into it, out of the error",
+    async (phase) => {
+      // Not a signing secret, so redaction can't know about it.
+      const other = "synthetic_app_token_7f3a";
+      const file = join(dir, `argv-${phase}.cjs`);
+      writeFileSync(file, "process.exit(3);");
+      const hook = `"${process.execPath}" "${file}" ${JSON.stringify(SECRET)} ${other}`;
+      const error = await hookError(phase, hook);
+      expect(error.message).toMatch(new RegExp(`^hooks\\.${phase} command exited with 3\\.`));
+      for (const leak of [other, file, "synthetic/hook"]) {
+        expect(error.message).not.toContain(leak);
+        expect(JSON.stringify(error.details)).not.toContain(leak);
+      }
+    },
+  );
+
+  it.each(["beforeEach", "afterEach"] as const)(
+    "reports a %s command Node.js refuses to start without quoting it",
+    async (phase) => {
+      // YAML's "\0" escape gets a NUL byte past the schema, and Node's own spawn error quotes
+      // the whole command.
+      const other = "synthetic_app_token_7f3a";
+      const error = await hookError(phase, `echo ${JSON.stringify(SECRET)} ${other}\u0000`);
+      expect(error.code).toBe("CONFIG_INVALID");
+      expect(error.message).toMatch(new RegExp(`^hooks\\.${phase} command could not be started`));
+      expect(error.message).toContain("ERR_INVALID_ARG_VALUE");
+      for (const leak of [other, ...leaks]) {
+        expect(error.message).not.toContain(leak);
+        expect(JSON.stringify(error.details)).not.toContain(leak);
+      }
+    },
+  );
 });
